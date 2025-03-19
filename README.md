@@ -5,8 +5,9 @@ A Python application that automatically searches for job listings based on your 
 ## Features
 
 - Search for jobs across multiple job titles and locations
-- Support for multiple job search APIs (JSearch and Active Jobs DB)
+- Support for multiple job search APIs (JSearch, Active Jobs DB, and LinkedIn)
 - Filter jobs by minimum salary (supports both hourly and annual rates)
+- Monitor LinkedIn company pages for job announcements
 - Configurable search parameters through .env file
 - Email notifications for new job listings
 - API-based job searching with comprehensive results
@@ -31,6 +32,11 @@ JSEARCH_API_HOST=jsearch.p.rapidapi.com
 # Active Jobs DB API credentials
 ACTIVEJOBS_API_KEY=your_api_key
 ACTIVEJOBS_API_HOST=active-jobs-db.p.rapidapi.com
+
+# LinkedIn API credentials
+LINKEDIN_API_KEY=your_api_key
+LINKEDIN_API_HOST=linkedin-data-api.p.rapidapi.com
+LINKEDIN_COMPANIES=microsoft,google,amazon
 
 # Use multiple APIs
 USE_MULTIPLE_APIS=true

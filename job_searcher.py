@@ -5,7 +5,8 @@ import requests
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
-from active_jobs_api import ActiveJobsAPI  # Import the new API client
+from active_jobs_api import ActiveJobsAPI  # Import the Active Jobs DB API client
+from linkedin_api import LinkedInAPI  # Import the LinkedIn API client
 
 # Configure logging
 logging.basicConfig(
@@ -34,11 +35,16 @@ class JobSearcher:
         # Get min salary for filtering
         self.min_salary = int(os.getenv("MIN_SALARY", "0"))
         
-        # Initialize the Active Jobs API client
+        # Initialize the API clients
         self.active_jobs_api = ActiveJobsAPI()
+        self.linkedin_api = LinkedInAPI()
         
         # Check if we should use multiple APIs
         self.use_multiple_apis = os.getenv("USE_MULTIPLE_APIS", "true").lower() == "true"
+        
+        # Get LinkedIn companies to monitor (if any)
+        linkedin_companies_str = os.getenv("LINKEDIN_COMPANIES", "")
+        self.linkedin_companies = [c.strip() for c in linkedin_companies_str.split(",")] if linkedin_companies_str else []
     
     def search_jobs(self, query=None, location=None, remote=True, page=1, num_pages=1, employment_types=None):
         """
@@ -78,14 +84,28 @@ class JobSearcher:
                 jsearch_jobs = self._search_single_query(title, loc, remote, page, num_pages)
                 all_jobs.extend(jsearch_jobs)
                 
-                # If multiple APIs are enabled, also search with Active Jobs API
+                # If multiple APIs are enabled, also search with other APIs
                 if self.use_multiple_apis:
                     try:
+                        # Search with Active Jobs API
                         active_jobs = self.active_jobs_api.search_jobs(title, loc)
                         logger.info(f"Found {len(active_jobs)} additional jobs from Active Jobs API for {title} in {loc}")
                         all_jobs.extend(active_jobs)
                     except Exception as e:
                         logger.error(f"Error searching Active Jobs API: {str(e)}")
+                        
+                    # If LinkedIn companies are specified, search for job posts
+                    if self.linkedin_companies:
+                        try:
+                            # Keywords to look for in LinkedIn posts should include the job title
+                            keywords = ["hiring", "job", "career", "position", "opportunity", "opening", "apply", "join our team"]
+                            keywords.extend([kw for kw in title.split() if len(kw) > 3])  # Add job title keywords
+                            
+                            linkedin_jobs = self.linkedin_api.search_jobs_from_posts(self.linkedin_companies, keywords)
+                            logger.info(f"Found {len(linkedin_jobs)} additional jobs from LinkedIn company posts")
+                            all_jobs.extend(linkedin_jobs)
+                        except Exception as e:
+                            logger.error(f"Error searching LinkedIn for jobs: {str(e)}")
         
         # Filter jobs by salary if min_salary is set
         if self.min_salary > 0:
