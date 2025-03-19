@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from active_jobs_api import ActiveJobsAPI  # Import the Active Jobs DB API client
 from linkedin_api import LinkedInAPI  # Import the LinkedIn API client
+from ai_processor import AIJobProcessor
 
 # Configure logging
 logging.basicConfig(
@@ -46,204 +47,159 @@ class JobSearcher:
         # Get LinkedIn companies to monitor (if any)
         linkedin_companies_str = os.getenv("LINKEDIN_COMPANIES", "")
         self.linkedin_companies = [c.strip() for c in linkedin_companies_str.split(",")] if linkedin_companies_str else []
-    
-    def search_jobs(self, query=None, location=None, remote=True, page=1, num_pages=1, employment_types=None):
-        """
-        Search for jobs using multiple APIs. Handles multiple job titles and locations.
         
-        Args:
-            query (str): Job title or keyword to search for (can be comma-separated)
-            location (str): Location to search in (can be comma-separated)
-            remote (bool): Whether to include remote jobs
-            page (int): Page number to retrieve
-            num_pages (int): Number of pages to retrieve
-            employment_types (list): List of employment types to filter by
-            
+        # Initialize AI processor
+        self.ai_processor = AIJobProcessor()
+        
+        # API request delay to avoid rate limiting
+        self.request_delay = float(os.getenv("API_REQUEST_DELAY", "1.5"))
+    
+    def search_jobs(self):
+        """
+        Search for jobs based on configured criteria
+        
         Returns:
-            list: List of job dictionaries
+            list: List of processed job listings
         """
         all_jobs = []
+        processed_jobs = []
         
-        # Get job titles from env if not provided
-        if not query:
-            query = os.getenv("JOB_TITLES", os.getenv("JOB_TITLE", "software developer"))
-        
-        # Get locations from env if not provided
-        if not location:
-            location = os.getenv("JOB_LOCATIONS", os.getenv("JOB_LOCATION", "usa"))
-        
-        # Split job titles and locations
-        job_titles = [title.strip() for title in query.split(',')]
-        locations = [loc.strip() for loc in location.split(',')]
-        
-        logger.info(f"Searching for {len(job_titles)} job titles in {len(locations)} locations")
-        
-        # Make a search for each job title and location combination
-        for title in job_titles:
-            for loc in locations:
-                # Search using JSearch API
-                jsearch_jobs = self._search_single_query(title, loc, remote, page, num_pages)
-                all_jobs.extend(jsearch_jobs)
+        # Search for each job title in each location
+        for title in self.job_titles:
+            for location in self.job_locations:
+                logger.info(f"Searching for {title} in {location}")
                 
-                # If multiple APIs are enabled, also search with other APIs
-                if self.use_multiple_apis:
-                    try:
-                        # Search with Active Jobs API
-                        active_jobs = self.active_jobs_api.search_jobs(title, loc)
-                        logger.info(f"Found {len(active_jobs)} additional jobs from Active Jobs API for {title} in {loc}")
-                        all_jobs.extend(active_jobs)
-                    except Exception as e:
-                        logger.error(f"Error searching Active Jobs API: {str(e)}")
-                        
-                    # If LinkedIn companies are specified, search for job posts
-                    if self.linkedin_companies:
-                        try:
-                            # Keywords to look for in LinkedIn posts should include the job title
-                            keywords = ["hiring", "job", "career", "position", "opportunity", "opening", "apply", "join our team"]
-                            keywords.extend([kw for kw in title.split() if len(kw) > 3])  # Add job title keywords
-                            
-                            linkedin_jobs = self.linkedin_api.search_jobs_from_posts(self.linkedin_companies, keywords)
-                            logger.info(f"Found {len(linkedin_jobs)} additional jobs from LinkedIn company posts")
-                            all_jobs.extend(linkedin_jobs)
-                        except Exception as e:
-                            logger.error(f"Error searching LinkedIn for jobs: {str(e)}")
-        
-        # Filter jobs by salary if min_salary is set
-        if self.min_salary > 0:
-            filtered_jobs = []
-            for job in all_jobs:
-                # Get salary data and handle None values
-                min_salary = job.get('job_min_salary', 0)
-                max_salary = job.get('job_max_salary', 0)
-                salary_period = job.get('job_salary_period', '')
-                salary_currency = job.get('job_salary_currency', 'USD')
-                
-                # Convert None values to 0
-                if min_salary is None:
-                    min_salary = 0
-                if max_salary is None:
-                    max_salary = 0
-                
-                # Handle None for salary_period
-                if salary_period is None:
-                    salary_period = ''
-                else:
-                    salary_period = salary_period.lower()
-                
-                # Default to annual if period is not specified
-                if not salary_period:
-                    salary_period = 'yearly'
-                
-                # For hourly rates, use the specified minimum directly
-                # For annual salary, convert to hourly equivalent assuming 2000 hours/year
-                meets_min_requirement = False
-                
-                if 'hour' in salary_period:
-                    meets_min_requirement = min_salary >= self.min_salary or max_salary >= self.min_salary
-                    logger.debug(f"Hourly salary: ${min_salary}-${max_salary} (min req: ${self.min_salary}/hr)")
-                else:
-                    # Divide annual salary by 2000 to get hourly equivalent
-                    hourly_min = min_salary / 2000 if min_salary > 0 else 0
-                    hourly_max = max_salary / 2000 if max_salary > 0 else 0
+                try:
+                    jobs = self._search_single_query(title, location)
+                    if jobs:
+                        all_jobs.extend(jobs)
+                        logger.info(f"Found {len(jobs)} jobs for {title} in {location}")
                     
-                    # If either the min or max hourly equivalent is >= min requirement
-                    meets_min_requirement = hourly_min >= self.min_salary or hourly_max >= self.min_salary
+                    # Add delay between requests
+                    time.sleep(self.request_delay)
                     
-                    # Also include if annual salary is very high (over $40,000)
-                    if min_salary >= 40000 or max_salary >= 40000:
-                        meets_min_requirement = True
-                        
-                    logger.debug(f"Annual salary: ${min_salary}-${max_salary} (hourly equiv: ${hourly_min:.2f}-${hourly_max:.2f}, min req: ${self.min_salary}/hr)")
-                
-                # Add jobs that meet salary requirements or jobs with missing salary data
-                if meets_min_requirement or (min_salary == 0 and max_salary == 0):
-                    filtered_jobs.append(job)
-                
-            logger.info(f"Filtered from {len(all_jobs)} to {len(filtered_jobs)} jobs based on minimum salary of ${self.min_salary}")
-            all_jobs = filtered_jobs
+                except Exception as e:
+                    logger.error(f"Error searching for {title} in {location}: {str(e)}")
         
-        # Apply custom filters based on preferences
-        filter_it_jobs = os.getenv("FILTER_IT_JOBS", "false").lower() == "true"
-        filter_location = os.getenv("FILTER_LOCATION", "")
-        filter_priorities = json.loads(os.getenv("FILTER_PRIORITIES", "[]"))
+        # Remove duplicates based on job ID
+        unique_jobs = self._remove_duplicates(all_jobs)
+        logger.info(f"Found {len(unique_jobs)} unique jobs after filtering")
         
-        # Apply custom filtering if enabled
-        if filter_it_jobs or filter_location:
-            filtered_jobs = self._apply_custom_filters(all_jobs, 
-                                                      filter_it=filter_it_jobs,
-                                                      location=filter_location,
-                                                      priorities=filter_priorities)
-            logger.info(f"Applied custom filters: IT jobs={filter_it_jobs}, Location={filter_location}")
-            logger.info(f"Filtered from {len(all_jobs)} to {len(filtered_jobs)} jobs based on custom criteria")
-            all_jobs = filtered_jobs
+        # Process each job with AI
+        for job in unique_jobs:
+            try:
+                # Analyze and prepare application if salary meets minimum
+                if self._meets_salary_requirements(job):
+                    application = self.ai_processor.prepare_application(job)
+                    if application['status'] == 'ready_to_apply':
+                        processed_jobs.append(application)
+                        logger.info(f"Prepared application for {job.get('job_title')} at {job.get('employer_name')}")
+            except Exception as e:
+                logger.error(f"Error processing job {job.get('job_id')}: {str(e)}")
         
-        # Remove duplicates based on job_id
-        unique_jobs = {}
-        for job in all_jobs:
-            job_id = job.get('job_id')
-            if job_id and job_id not in unique_jobs:
-                unique_jobs[job_id] = job
-        
-        result_jobs = list(unique_jobs.values())
-        logger.info(f"Found {len(result_jobs)} unique job listings across all searches")
-        
-        return result_jobs
+        logger.info(f"Successfully processed {len(processed_jobs)} jobs")
+        return processed_jobs
     
-    def _search_single_query(self, query, location, remote=True, page=1, num_pages=1):
+    def _search_single_query(self, query, location):
         """
-        Search for jobs with a single query and location
+        Perform a single job search query
         
         Args:
-            query (str): Job title or keyword to search for
+            query (str): Job title to search for
             location (str): Location to search in
-            remote (bool): Whether to include remote jobs
-            page (int): Page number to retrieve
-            num_pages (int): Number of pages to retrieve
             
         Returns:
-            list: List of job dictionaries
+            list: Job listings from the search
         """
-        # Simplify query to just use basic parameters that we know work
-        query_str = f"{query} in {location}"
-        logger.info(f"Search query: {query_str}")
+        url = f"https://{self.api_host}/search"
         
-        # Basic parameters that are known to work
-        url = f"{self.base_url}/search?query={urllib.parse.quote(query_str)}&page={page}&num_pages={num_pages}"
+        params = {
+            "query": f"{query} in {location}",
+            "page": "1",
+            "num_pages": "1",
+            "employment_types": ",".join(self.employment_types)
+        }
         
-        # Only add remote_jobs_only if it's true (to minimize parameters)
-        if remote:
-            url += "&remote_jobs_only=true"
-            
+        if self.remote_jobs_only:
+            params["remote_jobs_only"] = "true"
+        
+        headers = {
+            "X-RapidAPI-Key": self.api_key,
+            "X-RapidAPI-Host": self.api_host
+        }
+        
         try:
-            # Add delay to avoid rate limiting (0.5 to 2 seconds)
-            api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
-            time.sleep(api_delay)
-            
-            # Make API request
-            logger.info(f"Making request to: {url}")
-            
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
             
             data = response.json()
+            return data.get("data", [])
             
-            if data.get("status") != "OK":
-                logger.error(f"API returned non-OK status: {data.get('status')}")
-                return []
-            
-            # Extract job data
-            jobs = data.get("data", [])
-            logger.info(f"Found {len(jobs)} job listings for {query} in {location}")
-            
-            # Add timestamp for when the job was found
-            for job in jobs:
-                job["found_timestamp"] = datetime.now().isoformat()
-            
-            return jobs
-        
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error searching for jobs: {str(e)}")
+            logger.error(f"API request failed: {str(e)}")
+            if response.status_code == 429:
+                logger.warning("Rate limit exceeded. Waiting before next request.")
+                time.sleep(self.request_delay * 2)  # Double delay on rate limit
             return []
+    
+    def _meets_salary_requirements(self, job):
+        """
+        Check if a job meets the minimum salary requirements
+        
+        Args:
+            job (dict): Job listing to check
+            
+        Returns:
+            bool: Whether the job meets requirements
+        """
+        min_salary = job.get('job_min_salary', 0) or 0
+        max_salary = job.get('job_max_salary', 0) or 0
+        salary_period = (job.get('job_salary_period', '') or '').lower()
+        
+        # Convert salary to hourly rate for comparison
+        if salary_period == 'yearly':
+            min_hourly = min_salary / (52 * 40)  # 52 weeks * 40 hours
+            max_hourly = max_salary / (52 * 40)
+        elif salary_period == 'monthly':
+            min_hourly = min_salary / (4 * 40)   # 4 weeks * 40 hours
+            max_hourly = max_salary / (4 * 40)
+        elif salary_period == 'weekly':
+            min_hourly = min_salary / 40         # 40 hours per week
+            max_hourly = max_salary / 40
+        elif salary_period == 'daily':
+            min_hourly = min_salary / 8          # 8 hours per day
+            max_hourly = max_salary / 8
+        else:  # hourly or unspecified
+            min_hourly = min_salary
+            max_hourly = max_salary
+        
+        # If no salary info, assume it doesn't meet requirements
+        if min_hourly == 0 and max_hourly == 0:
+            return False
+        
+        # Check if either min or max salary meets requirements
+        return min_hourly >= self.min_salary or max_hourly >= self.min_salary
+    
+    def _remove_duplicates(self, jobs):
+        """
+        Remove duplicate job listings based on job ID
+        
+        Args:
+            jobs (list): List of job listings
+            
+        Returns:
+            list: Deduplicated job listings
+        """
+        seen_ids = set()
+        unique_jobs = []
+        
+        for job in jobs:
+            job_id = job.get('job_id')
+            if job_id and job_id not in seen_ids:
+                seen_ids.add(job_id)
+                unique_jobs.append(job)
+        
+        return unique_jobs
     
     def get_job_details(self, job_id):
         """

@@ -1,0 +1,43 @@
+{
+    "name": "",
+    "email": "",
+    "phone": "",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "resume_path": "resume.pdf",
+    "skills": [
+        "python",
+        "javascript",
+        "react",
+        "node.js",
+        "html",
+        "css",
+        "sql"
+    ],
+    "experience": "2 years",
+    "education": "Bachelor's in Computer Science",
+    "preferred_roles": [
+        "Software Developer",
+        "Full Stack Developer",
+        "Backend Developer",
+        "Frontend Developer"
+    ],
+    "preferred_locations": [
+        "Oklahoma City",
+        "Remote"
+    ],
+    "min_salary": 20,
+    "salary_period": "hourly",
+    "employment_types": [
+        "full-time",
+        "contract"
+    ],
+    "about_me": "A passionate software developer with experience in full-stack web development, focusing on Python and JavaScript technologies. Strong problem-solving skills and a commitment to writing clean, maintainable code.",
+    "achievements": [
+        "Developed and deployed multiple web applications",
+        "Contributed to open-source projects",
+        "Implemented automated testing and CI/CD pipelines"
+    ],
+    "certifications": []
+} 
