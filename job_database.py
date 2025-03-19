@@ -1,144 +1,241 @@
 import os
 import json
-from tinydb import TinyDB, Query
-from tinydb.operations import set
-from datetime import datetime
 import logging
+from datetime import datetime
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger("job_database")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class JobDatabase:
-    def __init__(self, db_path="jobs_database.json"):
-        """
-        Initialize the job database
-        
-        Args:
-            db_path (str): Path to the database file
-        """
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
-        
-        self.db = TinyDB(db_path)
-        self.jobs_table = self.db.table('jobs')
-        self.Job = Query()
-        
-        logger.info(f"Initialized job database at {db_path}")
+    def __init__(self, db_file="jobs_database.json"):
+        """Initialize the job database"""
+        self.db_file = db_file
+        self.jobs = self._load_database()
     
-    def add_job(self, job):
-        """
-        Add a job to the database if it doesn't already exist
-        
-        Args:
-            job (dict): Job data to add
-            
-        Returns:
-            bool: True if job was added, False if it already exists
-        """
-        job_id = job.get('job_id')
-        
-        if not job_id:
-            logger.warning("Cannot add job without job_id")
-            return False
-            
-        # Check if job already exists
-        existing_job = self.jobs_table.get(self.Job.job_id == job_id)
-        
-        if existing_job:
-            logger.debug(f"Job {job_id} already exists in database")
-            return False
-        
-        # Add job to database with additional metadata
-        job['added_timestamp'] = datetime.now().isoformat()
-        job['notified'] = False
-        
-        self.jobs_table.insert(job)
-        logger.info(f"Added job {job_id} to database")
-        
-        return True
+    def _load_database(self):
+        """Load the job database from file"""
+        try:
+            if os.path.exists(self.db_file):
+                with open(self.db_file, 'r') as f:
+                    return json.load(f)
+            else:
+                logger.info(f"Creating new database at {self.db_file}")
+                return {}
+        except Exception as e:
+            logger.error(f"Error loading database: {str(e)}")
+            return {}
     
-    def add_jobs(self, jobs):
-        """
-        Add multiple jobs to the database, return only new ones
-        
-        Args:
-            jobs (list): List of job dictionaries to add
-            
-        Returns:
-            list: List of newly added job dictionaries
-        """
-        new_jobs = []
-        
-        for job in jobs:
-            if self.add_job(job):
-                new_jobs.append(job)
-        
-        logger.info(f"Added {len(new_jobs)} new jobs out of {len(jobs)} total")
-        return new_jobs
-    
-    def mark_as_notified(self, job_id):
-        """
-        Mark a job as notified
-        
-        Args:
-            job_id (str): ID of the job to mark
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        result = self.jobs_table.update(
-            set('notified', True),
-            self.Job.job_id == job_id
-        )
-        
-        if result:
-            logger.info(f"Marked job {job_id} as notified")
+    def _save_database(self):
+        """Save the job database to file"""
+        try:
+            with open(self.db_file, 'w') as f:
+                json.dump(self.jobs, f, indent=2)
             return True
-        else:
-            logger.warning(f"Failed to mark job {job_id} as notified - not found")
+        except Exception as e:
+            logger.error(f"Error saving database: {str(e)}")
             return False
     
-    def mark_jobs_as_notified(self, job_ids):
+    def add_job(self, application):
         """
-        Mark multiple jobs as notified
+        Add a job application to the database
         
         Args:
-            job_ids (list): List of job IDs to mark
+            application (dict): Job application package
             
         Returns:
-            int: Number of jobs successfully marked
+            bool: Whether the job was added successfully
         """
-        count = 0
-        for job_id in job_ids:
-            if self.mark_as_notified(job_id):
-                count += 1
-        
-        logger.info(f"Marked {count} jobs as notified")
-        return count
+        try:
+            job_id = application['job_data'].get('job_id')
+            if not job_id:
+                logger.warning("Job ID not found in application")
+                return False
+            
+            if job_id not in self.jobs:
+                # Add job with status tracking
+                self.jobs[job_id] = {
+                    'application': application,
+                    'status': 'new',
+                    'added_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now().isoformat(),
+                    'notifications_sent': 0,
+                    'applied': False,
+                    'application_date': None,
+                    'follow_up_date': None,
+                    'notes': []
+                }
+                
+                logger.info(f"Added job {job_id} to database")
+                self._save_database()
+                return True
+            else:
+                logger.debug(f"Job {job_id} already exists in database")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error adding job to database: {str(e)}")
+            return False
     
-    def get_unnotified_jobs(self):
+    def update_job_status(self, job_id, status, notes=None):
         """
-        Get all jobs that haven't been notified yet
+        Update the status of a job in the database
         
-        Returns:
-            list: List of unnotified job dictionaries
+        Args:
+            job_id (str): Job ID to update
+            status (str): New status ('new', 'notified', 'applied', 'interviewing', 'rejected', 'accepted')
+            notes (str): Optional notes about the status change
         """
-        unnotified_jobs = self.jobs_table.search(self.Job.notified == False)
-        logger.info(f"Found {len(unnotified_jobs)} unnotified jobs")
-        return unnotified_jobs
+        try:
+            if job_id in self.jobs:
+                self.jobs[job_id]['status'] = status
+                self.jobs[job_id]['updated_at'] = datetime.now().isoformat()
+                
+                if status == 'applied':
+                    self.jobs[job_id]['applied'] = True
+                    self.jobs[job_id]['application_date'] = datetime.now().isoformat()
+                
+                if notes:
+                    self.jobs[job_id]['notes'].append({
+                        'timestamp': datetime.now().isoformat(),
+                        'note': notes
+                    })
+                
+                self._save_database()
+                logger.info(f"Updated job {job_id} status to {status}")
+                return True
+            else:
+                logger.warning(f"Job {job_id} not found in database")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating job status: {str(e)}")
+            return False
+    
+    def mark_notification_sent(self, job_id):
+        """
+        Mark that a notification has been sent for a job
+        
+        Args:
+            job_id (str): Job ID to update
+        """
+        try:
+            if job_id in self.jobs:
+                self.jobs[job_id]['notifications_sent'] += 1
+                self.jobs[job_id]['status'] = 'notified'
+                self.jobs[job_id]['updated_at'] = datetime.now().isoformat()
+                self._save_database()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error marking notification sent: {str(e)}")
+            return False
+    
+    def get_job(self, job_id):
+        """
+        Get a job from the database
+        
+        Args:
+            job_id (str): Job ID to retrieve
+            
+        Returns:
+            dict: Job data or None if not found
+        """
+        return self.jobs.get(job_id)
+    
+    def job_exists(self, job_id):
+        """
+        Check if a job exists in the database
+        
+        Args:
+            job_id (str): Job ID to check
+            
+        Returns:
+            bool: Whether the job exists
+        """
+        return job_id in self.jobs
+    
+    def get_jobs_by_status(self, status):
+        """
+        Get all jobs with a particular status
+        
+        Args:
+            status (str): Status to filter by
+            
+        Returns:
+            list: List of jobs with the specified status
+        """
+        return [
+            job for job in self.jobs.values()
+            if job['status'] == status
+        ]
     
     def get_all_jobs(self):
         """
         Get all jobs in the database
         
         Returns:
-            list: List of all job dictionaries
+            dict: All jobs in the database
         """
-        all_jobs = self.jobs_table.all()
-        logger.info(f"Retrieved {len(all_jobs)} jobs from database")
-        return all_jobs 
+        return self.jobs
+    
+    def add_note(self, job_id, note):
+        """
+        Add a note to a job
+        
+        Args:
+            job_id (str): Job ID to add note to
+            note (str): Note to add
+        """
+        try:
+            if job_id in self.jobs:
+                if 'notes' not in self.jobs[job_id]:
+                    self.jobs[job_id]['notes'] = []
+                
+                self.jobs[job_id]['notes'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'note': note
+                })
+                
+                self.jobs[job_id]['updated_at'] = datetime.now().isoformat()
+                self._save_database()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error adding note: {str(e)}")
+            return False
+    
+    def get_stats(self):
+        """
+        Get statistics about the jobs in the database
+        
+        Returns:
+            dict: Statistics about the jobs
+        """
+        stats = {
+            'total_jobs': len(self.jobs),
+            'status_counts': {},
+            'applied_count': 0,
+            'active_applications': 0,
+            'success_rate': 0
+        }
+        
+        for job in self.jobs.values():
+            # Count by status
+            status = job['status']
+            stats['status_counts'][status] = stats['status_counts'].get(status, 0) + 1
+            
+            # Count applications
+            if job['applied']:
+                stats['applied_count'] += 1
+            
+            # Count active applications (applied but no final decision)
+            if job['applied'] and status not in ['rejected', 'accepted']:
+                stats['active_applications'] += 1
+        
+        # Calculate success rate (if any applications)
+        if stats['applied_count'] > 0:
+            accepted = stats['status_counts'].get('accepted', 0)
+            stats['success_rate'] = (accepted / stats['applied_count']) * 100
+        
+        return stats 
