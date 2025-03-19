@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
+from active_jobs_api import ActiveJobsAPI  # Import the new API client
 
 # Configure logging
 logging.basicConfig(
@@ -31,11 +32,17 @@ class JobSearcher:
         }
         
         # Get min salary for filtering
-        self.min_salary = int(os.getenv("MIN_SALARY", "0")) 
+        self.min_salary = int(os.getenv("MIN_SALARY", "0"))
+        
+        # Initialize the Active Jobs API client
+        self.active_jobs_api = ActiveJobsAPI()
+        
+        # Check if we should use multiple APIs
+        self.use_multiple_apis = os.getenv("USE_MULTIPLE_APIS", "true").lower() == "true"
     
     def search_jobs(self, query=None, location=None, remote=True, page=1, num_pages=1, employment_types=None):
         """
-        Search for jobs using the JSearch API. Handles multiple job titles and locations.
+        Search for jobs using multiple APIs. Handles multiple job titles and locations.
         
         Args:
             query (str): Job title or keyword to search for (can be comma-separated)
@@ -67,8 +74,18 @@ class JobSearcher:
         # Make a search for each job title and location combination
         for title in job_titles:
             for loc in locations:
-                jobs = self._search_single_query(title, loc, remote, page, num_pages)
-                all_jobs.extend(jobs)
+                # Search using JSearch API
+                jsearch_jobs = self._search_single_query(title, loc, remote, page, num_pages)
+                all_jobs.extend(jsearch_jobs)
+                
+                # If multiple APIs are enabled, also search with Active Jobs API
+                if self.use_multiple_apis:
+                    try:
+                        active_jobs = self.active_jobs_api.search_jobs(title, loc)
+                        logger.info(f"Found {len(active_jobs)} additional jobs from Active Jobs API for {title} in {loc}")
+                        all_jobs.extend(active_jobs)
+                    except Exception as e:
+                        logger.error(f"Error searching Active Jobs API: {str(e)}")
         
         # Filter jobs by salary if min_salary is set
         if self.min_salary > 0:
