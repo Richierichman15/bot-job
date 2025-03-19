@@ -2,6 +2,7 @@ import http.client
 import json
 import logging
 import os
+import time
 from dotenv import load_dotenv
 from urllib.parse import quote
 
@@ -39,6 +40,10 @@ class LinkedInAPI:
         try:
             # Build the endpoint
             endpoint = f"/get-company-posts?username={quote(company_username)}&start={start}"
+            
+            # Add delay to avoid rate limiting
+            api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
+            time.sleep(api_delay)
             
             # Set up the connection
             conn = http.client.HTTPSConnection(self.api_host)

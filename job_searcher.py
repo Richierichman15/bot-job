@@ -2,6 +2,7 @@ import os
 import json
 import urllib.parse
 import requests
+import time
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
@@ -161,6 +162,21 @@ class JobSearcher:
             logger.info(f"Filtered from {len(all_jobs)} to {len(filtered_jobs)} jobs based on minimum salary of ${self.min_salary}")
             all_jobs = filtered_jobs
         
+        # Apply custom filters based on preferences
+        filter_it_jobs = os.getenv("FILTER_IT_JOBS", "false").lower() == "true"
+        filter_location = os.getenv("FILTER_LOCATION", "")
+        filter_priorities = json.loads(os.getenv("FILTER_PRIORITIES", "[]"))
+        
+        # Apply custom filtering if enabled
+        if filter_it_jobs or filter_location:
+            filtered_jobs = self._apply_custom_filters(all_jobs, 
+                                                      filter_it=filter_it_jobs,
+                                                      location=filter_location,
+                                                      priorities=filter_priorities)
+            logger.info(f"Applied custom filters: IT jobs={filter_it_jobs}, Location={filter_location}")
+            logger.info(f"Filtered from {len(all_jobs)} to {len(filtered_jobs)} jobs based on custom criteria")
+            all_jobs = filtered_jobs
+        
         # Remove duplicates based on job_id
         unique_jobs = {}
         for job in all_jobs:
@@ -199,6 +215,10 @@ class JobSearcher:
             url += "&remote_jobs_only=true"
             
         try:
+            # Add delay to avoid rate limiting (0.5 to 2 seconds)
+            api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
+            time.sleep(api_delay)
+            
             # Make API request
             logger.info(f"Making request to: {url}")
             
@@ -290,4 +310,76 @@ class JobSearcher:
         
         except requests.exceptions.RequestException as e:
             logger.error(f"Error getting salary estimate: {str(e)}")
-            return {} 
+            return {}
+
+    def _apply_custom_filters(self, jobs, filter_it=False, location=None, priorities=None):
+        """
+        Apply custom filters to jobs based on preferences.
+        
+        Args:
+            jobs (list): List of job dictionaries to filter
+            filter_it (bool): Whether to filter for IT/software jobs
+            location (str): Specific location to filter for (case insensitive)
+            priorities (list): List of priority job types or keywords
+            
+        Returns:
+            list: Filtered job dictionaries
+        """
+        filtered_jobs = []
+        
+        # Define IT and software-related keywords
+        it_keywords = [
+            "software", "developer", "engineer", "programming", "coder", "IT", 
+            "information technology", "web", "frontend", "backend", "full stack",
+            "python", "javascript", "java", "C#", ".NET", "node", "react", "angular",
+            "cloud", "devops", "sysadmin", "database", "DBA", "data", "analytics",
+            "machine learning", "AI", "artificial intelligence", "cybersecurity", 
+            "security", "network", "support", "helpdesk", "QA", "quality assurance",
+            "tester", "analyst", "architect", "administrator", "tech", "computer"
+        ]
+        
+        # Apply filters to each job
+        for job in jobs:
+            # Get job details
+            job_title = job.get('job_title', '').lower()
+            job_description = job.get('job_description', '').lower()
+            job_city = job.get('job_city', '').lower()
+            job_country = job.get('job_country', '').lower()
+            employer_name = job.get('employer_name', '').lower()
+            
+            # Combine all text fields for IT keyword matching
+            all_job_text = f"{job_title} {job_description} {employer_name}"
+            
+            # Check if job passes IT filter (if enabled)
+            passes_it_filter = True
+            if filter_it:
+                passes_it_filter = any(keyword.lower() in all_job_text for keyword in it_keywords)
+            
+            # Check if job passes location filter (if specified)
+            passes_location_filter = True
+            if location:
+                location = location.lower()
+                passes_location_filter = (
+                    location in job_city or 
+                    location in job_country or
+                    # Also check description for location mentions
+                    location in job_description
+                )
+            
+            # Check if the job matches any priority keywords
+            priority_match = False
+            if priorities:
+                priority_match = any(priority.lower() in all_job_text for priority in priorities)
+            
+            # Include job if it passes all enabled filters
+            if passes_it_filter and passes_location_filter:
+                # Mark priority matches for sorting later
+                if priority_match:
+                    job['priority_match'] = True
+                filtered_jobs.append(job)
+        
+        # Sort filtered jobs by priority if any priorities were specified
+        if priorities:
+            filtered_jobs.sort(key=lambda j: j.get('priority_match', False), reverse=True)
+        
+        return filtered_jobs 

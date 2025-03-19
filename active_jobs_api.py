@@ -2,6 +2,7 @@ import http.client
 import json
 import logging
 import os
+import time
 from urllib.parse import quote
 from dotenv import load_dotenv
 
@@ -44,6 +45,10 @@ class ActiveJobsAPI:
             
             # Build the endpoint
             endpoint = f"/active-ats-1h?title_filter={encoded_title}&location_filter={encoded_location}"
+            
+            # Add delay to avoid rate limiting
+            api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
+            time.sleep(api_delay)
             
             # Set up the connection
             conn = http.client.HTTPSConnection(self.api_host)
