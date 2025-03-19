@@ -1,9 +1,9 @@
 {
-    "name": "",
-    "email": "",
-    "phone": "",
-    "linkedin": "",
-    "github": "",
+    "name": "Gitonga Nyaga",
+    "email": "gitonganyaga@gmail.com",
+    "phone": "405-922-2239",
+    "linkedin": "https://www.linkedin.com/in/gitonga-nyaga-7ba5a126b/",
+    "github": "https://github.com/Richierichman15",
     "portfolio": "",
     "resume_path": "resume.pdf",
     "skills": [
@@ -11,17 +11,64 @@
         "javascript",
         "react",
         "node.js",
+        "express.js",
+        "mongodb",
+        "postgresql",
+        "docker",
+        "kubernetes",
+        "microservices",
+        "rest apis",
+        "graphql",
+        "aws",
+        "ci/cd",
+        "git",
         "html",
         "css",
-        "sql"
+        "sql",
+        "openai api",
+        "langchain",
+        "fastapi",
+        "redis",
+        "system design",
+        "agile methodologies",
+        "test-driven development",
+        "healthcare systems integration",
+        "hipaa compliance",
+        "ai/ml integration",
+        "web security",
+        "oauth2",
+        "jwt"
     ],
-    "experience": "2 years",
-    "education": "Bachelor's in Computer Science",
+    "experience": [
+        {
+            "title": "Software Developer",
+            "company": "Outlier AI",
+            "period": "November 2023 - Present",
+            "description": "Developing and maintaining AI-powered applications and microservices"
+        },
+        {
+            "title": "Software Development Apprentice",
+            "company": "Software District",
+            "period": "2023",
+            "mentor": "Anthony Karanja",
+            "mentor_contact": "714-234-7430",
+            "description": "Hands-on training in full-stack development and software engineering practices"
+        }
+    ],
+    "education": [
+        {
+            "degree": "Web Development Certification",
+            "institution": "Fullstack Academy",
+            "year": "2023",
+            "focus": "Full-Stack Web Development"
+        }
+    ],
     "preferred_roles": [
         "Software Developer",
         "Full Stack Developer",
         "Backend Developer",
-        "Frontend Developer"
+        "AI/ML Engineer",
+        "Healthcare Software Developer"
     ],
     "preferred_locations": [
         "Oklahoma City",
@@ -31,13 +78,38 @@
     "salary_period": "hourly",
     "employment_types": [
         "full-time",
-        "contract"
+        "contract",
+        "part-time"
     ],
-    "about_me": "A passionate software developer with experience in full-stack web development, focusing on Python and JavaScript technologies. Strong problem-solving skills and a commitment to writing clean, maintainable code.",
+    "about_me": "A dynamic and innovative software developer with a passion for building cutting-edge applications that leverage AI and modern technologies. My journey through Fullstack Academy and current role at Outlier AI has equipped me with a robust foundation in full-stack development, microservices architecture, and AI integration. I excel at creating scalable solutions that solve real-world problems, particularly in healthcare technology and AI-powered systems. My experience includes developing microservices, AI assistants, and healthcare applications, demonstrating my versatility and commitment to staying at the forefront of technology. I am driven by the opportunity to create impactful solutions that push the boundaries of what's possible in software development.",
     "achievements": [
-        "Developed and deployed multiple web applications",
-        "Contributed to open-source projects",
-        "Implemented automated testing and CI/CD pipelines"
+        "Developed and deployed an AI-powered job search assistant using OpenAI's GPT-4 and microservices architecture",
+        "Created a healthcare application with HIPAA-compliant data handling and secure API integrations",
+        "Built and maintained microservices-based applications with high availability and scalability",
+        "Implemented CI/CD pipelines for automated testing and deployment",
+        "Successfully completed intensive web development training at Fullstack Academy",
+        "Contributed to the development of AI-powered applications at Outlier AI",
+        "Designed and implemented RESTful APIs and GraphQL endpoints for various applications",
+        "Mentored by industry professionals and rapidly adapted to new technologies and methodologies"
     ],
-    "certifications": []
+    "certifications": [
+        {
+            "name": "Web Development Certification",
+            "issuer": "Fullstack Academy",
+            "year": "2023",
+            "certificate_path": "certifications/Certification.pdf",
+            "type": "Professional Certificate",
+            "skills_covered": [
+                "Full-Stack Web Development",
+                "JavaScript",
+                "React",
+                "Node.js",
+                "Express",
+                "SQL",
+                "PostgreSQL",
+                "RESTful APIs"
+            ],
+            "verification_url": ""
+        }
+    ]
 } 
