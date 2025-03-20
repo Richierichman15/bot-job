@@ -4,11 +4,16 @@ import json
 import time
 import logging
 import argparse
+import signal
 from datetime import datetime
 from dotenv import load_dotenv
 from job_searcher import JobSearcher
 from job_database import JobDatabase
 from email_notifier import EmailNotifier
+from ai_processor import AIJobProcessor
+from email_sender import send_job_notification
+import re
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +39,153 @@ class JobAlertSystem:
         # Load settings
         self.check_interval = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
         
+        # Resume and application settings
+        self.resume_path = os.getenv("RESUME_PATH", "resume/resume.pdf")
+        self.auto_submit = os.getenv("AUTO_SUBMIT_APPLICATIONS", "false").lower() == "true"
+        self.cover_letter_template = os.getenv("COVER_LETTER_TEMPLATE", "resume/cover_letter_template.txt")
+        
+        # Verify resume exists
+        if self.auto_submit and not os.path.exists(self.resume_path):
+            logger.warning(f"Resume not found at {self.resume_path}. Auto-submit will be disabled.")
+            self.auto_submit = False
+        
+        # Verify cover letter template exists
+        if self.auto_submit and not os.path.exists(self.cover_letter_template):
+            logger.warning(f"Cover letter template not found at {self.cover_letter_template}. Using default template.")
+            self._create_default_cover_letter_template()
+        
+        # Create applications directory
+        self.applications_dir = "applications"
+        os.makedirs(self.applications_dir, exist_ok=True)
+        
+    def _create_default_cover_letter_template(self):
+        """Create a default cover letter template if none exists"""
+        default_template = """Dear Hiring Manager,
+
+I am writing to express my interest in the {{JOB_TITLE}} position at {{COMPANY_NAME}}. 
+With my skills in web development, I believe I would be a valuable addition to your team.
+
+My technical skills include Python, JavaScript, React, and database technologies.
+
+Thank you for considering my application.
+
+Sincerely,
+{{CANDIDATE_NAME}}
+{{CANDIDATE_EMAIL}}
+{{CANDIDATE_PHONE}}
+"""
+        os.makedirs(os.path.dirname(self.cover_letter_template), exist_ok=True)
+        with open(self.cover_letter_template, 'w') as f:
+            f.write(default_template)
+        logger.info(f"Created default cover letter template at {self.cover_letter_template}")
+    
+    def generate_cover_letter(self, job, analysis):
+        """Generate a cover letter for a specific job application"""
+        try:
+            # Read the template
+            with open(self.cover_letter_template, 'r') as f:
+                template = f.read()
+            
+            # Get company name, job title
+            company_name = job.get('employer_name', 'the Company')
+            job_title = job.get('job_title', 'the Position')
+            
+            # Get matched skills
+            skills_matched = ", ".join(job.get('job_required_skills', [])[:3])
+            if not skills_matched:
+                skills_matched = "relevant technologies"
+            
+            # Generate custom paragraph based on AI analysis
+            custom_paragraph = "Based on my experience with these technologies, I am confident I can contribute effectively to this role."
+            if analysis and 'explanation' in analysis:
+                custom_paragraph = analysis['explanation']
+            
+            # Generate company reason
+            company_reason = "of its innovative work and reputation"
+            
+            # Replace placeholders
+            cover_letter = template.replace('{{COMPANY_NAME}}', company_name)
+            cover_letter = cover_letter.replace('{{JOB_TITLE}}', job_title)
+            cover_letter = cover_letter.replace('{{SKILLS_MATCHED}}', skills_matched)
+            cover_letter = cover_letter.replace('{{CUSTOM_PARAGRAPH}}', custom_paragraph)
+            cover_letter = cover_letter.replace('{{COMPANY_REASON}}', company_reason)
+            
+            # Replace candidate info
+            cover_letter = cover_letter.replace('{{CANDIDATE_NAME}}', os.getenv("CANDIDATE_NAME", ""))
+            cover_letter = cover_letter.replace('{{CANDIDATE_EMAIL}}', os.getenv("CANDIDATE_EMAIL", ""))
+            cover_letter = cover_letter.replace('{{CANDIDATE_PHONE}}', os.getenv("CANDIDATE_PHONE", ""))
+            cover_letter = cover_letter.replace('{{CANDIDATE_LINKEDIN}}', os.getenv("CANDIDATE_LINKEDIN", ""))
+            
+            return cover_letter
+        
+        except Exception as e:
+            logger.error(f"Error generating cover letter: {str(e)}")
+            return None
+    
+    def prepare_job_application(self, job, analysis):
+        """Prepare a job application package with resume and cover letter"""
+        if not os.path.exists(self.resume_path):
+            logger.error(f"Resume not found at {self.resume_path}")
+            return None
+        
+        try:
+            # Create unique application ID
+            job_id = job.get('job_id', 'unknown')
+            company = job.get('employer_name', 'unknown').lower().replace(' ', '_')
+            date_str = datetime.now().strftime('%Y%m%d')
+            application_id = f"{company}_{date_str}_{job_id}"
+            
+            # Create application directory
+            application_dir = os.path.join(self.applications_dir, application_id)
+            os.makedirs(application_dir, exist_ok=True)
+            
+            # Generate cover letter
+            cover_letter = self.generate_cover_letter(job, analysis)
+            if cover_letter:
+                cover_letter_path = os.path.join(application_dir, f"cover_letter_{company}.txt")
+                with open(cover_letter_path, 'w') as f:
+                    f.write(cover_letter)
+            
+            # Copy resume to application directory
+            import shutil
+            resume_filename = os.path.basename(self.resume_path)
+            destination_resume = os.path.join(application_dir, resume_filename)
+            shutil.copy(self.resume_path, destination_resume)
+            
+            # Save job details
+            job_details_path = os.path.join(application_dir, "job_details.json")
+            with open(job_details_path, 'w') as f:
+                json.dump(job, f, indent=2)
+            
+            # Save application metadata
+            metadata = {
+                "application_id": application_id,
+                "job_title": job.get('job_title', ''),
+                "company": job.get('employer_name', ''),
+                "apply_link": job.get('job_apply_link', ''),
+                "date_prepared": datetime.now().isoformat(),
+                "submitted": False,
+                "submission_date": None
+            }
+            
+            metadata_path = os.path.join(application_dir, "metadata.json")
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+            
+            logger.info(f"Prepared application package for {job.get('employer_name')} - {job.get('job_title')}")
+            return {
+                "application_id": application_id,
+                "resume_path": destination_resume,
+                "cover_letter_path": cover_letter_path if cover_letter else None,
+                "job_details_path": job_details_path,
+                "metadata_path": metadata_path,
+                "apply_link": job.get('job_apply_link', '')
+            }
+        
+        except Exception as e:
+            logger.error(f"Error preparing job application: {str(e)}")
+            return None
+    
     def run_once(self):
         """Run the job alert system once and exit"""
         logger.info("Running job alert system once")
@@ -103,6 +255,13 @@ class JobAlertSystem:
                 for job in new_jobs:
                     self.db.add_job(job)
                 
+                # Prepare application packages with mock data
+                if self.auto_submit:
+                    for i, job in enumerate(jobs):
+                        application_package = self.prepare_job_application(job, application_packages[i].get('analysis'))
+                        if application_package:
+                            application_packages[i]['application'] = application_package
+                
                 # Send email notifications if there are any new jobs
                 if new_job_packages:
                     logger.info(f"Sending notifications for {len(new_job_packages)} jobs")
@@ -140,6 +299,16 @@ class JobAlertSystem:
                     for job in new_jobs:
                         self.db.add_job(job)
                     
+                    # Prepare job applications if auto-submit is enabled
+                    if self.auto_submit:
+                        for i, package in enumerate(new_job_packages):
+                            job = package.get('job', {})
+                            analysis = package.get('analysis', {})
+                            
+                            application = self.prepare_job_application(job, analysis)
+                            if application:
+                                new_job_packages[i]['application'] = application
+                    
                     # Send email notifications if there are any new jobs
                     if new_job_packages:
                         logger.info(f"Sending notifications for {len(new_job_packages)} jobs")
@@ -152,6 +321,9 @@ class JobAlertSystem:
         
         except Exception as e:
             logger.error(f"Error in job alert system: {str(e)}")
+            return False
+        
+        return True
     
     def run_continuous(self):
         """Run the job alert system continuously"""
