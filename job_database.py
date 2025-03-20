@@ -36,26 +36,42 @@ class JobDatabase:
             logger.error(f"Error saving database: {str(e)}")
             return False
     
-    def add_job(self, application):
+    def add_job(self, job_data):
         """
-        Add a job application to the database
+        Add a job to the database
         
         Args:
-            application (dict): Job application package
+            job_data (dict): Job data or application package
             
         Returns:
             bool: Whether the job was added successfully
         """
         try:
-            job_id = application['job_data'].get('job_id')
+            # Check if we have a full application package or just job data
+            if 'job_data' in job_data:
+                # This is a full application package
+                job_id = job_data['job_data'].get('job_id')
+                job = job_data
+            elif 'job' in job_data:
+                # This is a processed job with analysis
+                job_id = job_data['job'].get('job_id')
+                job = job_data
+            else:
+                # This is just the job data from the API
+                job_id = job_data.get('job_id')
+                # Create a simple wrapper
+                job = {
+                    'job_data': job_data
+                }
+            
             if not job_id:
-                logger.warning("Job ID not found in application")
+                logger.warning("Job ID not found in job data")
                 return False
             
             if job_id not in self.jobs:
                 # Add job with status tracking
                 self.jobs[job_id] = {
-                    'application': application,
+                    'application': job,
                     'status': 'new',
                     'added_at': datetime.now().isoformat(),
                     'updated_at': datetime.now().isoformat(),

@@ -3,7 +3,7 @@ import logging
 import json
 from dotenv import load_dotenv
 from datetime import datetime
-from openai import OpenAI
+import openai
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,7 @@ class AIJobProcessor:
         if not self.api_key:
             raise ValueError("OpenAI API key not found in environment variables")
         
-        self.client = OpenAI(api_key=self.api_key)
+        openai.api_key = self.api_key
         
         # Load candidate profile
         self.candidate_profile = self._load_candidate_profile()
@@ -109,8 +109,8 @@ class AIJobProcessor:
             """
             
             # Get AI analysis
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"}
             )
@@ -172,8 +172,8 @@ class AIJobProcessor:
             """
             
             # Get AI-generated cover letter
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
             

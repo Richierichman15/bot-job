@@ -28,45 +28,130 @@ class JobAlertSystem:
         
         # Initialize components
         self.searcher = JobSearcher()
-        self.database = JobDatabase()
-        self.notifier = EmailNotifier()
+        self.db = JobDatabase()
+        self.email_notifier = EmailNotifier()
         
         # Load settings
         self.check_interval = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
         
     def run_once(self):
-        """Run one iteration of the job search and notification process"""
+        """Run the job alert system once and exit"""
+        logger.info("Running job alert system once")
+        
         try:
+            # Search for jobs
             logger.info("Starting job search process...")
             
-            # Search for jobs and get AI-processed applications
-            applications = self.searcher.search_jobs()
-            logger.info(f"Found {len(applications)} potential jobs to apply for")
+            # Use job searcher to find jobs
+            logger.info("Searching for jobs using basic search...")
+            job_searcher = JobSearcher()
             
-            # Process each application
-            new_applications = []
-            for application in applications:
-                job_id = application['job_data'].get('job_id')
+            # If using mock data, we'll get processed jobs directly
+            if os.getenv("USE_MOCK_DATA", "false").lower() == "true":
+                # Get mock jobs directly
+                mock_jobs = job_searcher._get_mock_jobs()
+                jobs = mock_jobs  # These are raw job objects without any AI processing
                 
-                # Check if we've seen this job before
-                if not self.database.job_exists(job_id):
-                    # Add to database
-                    self.database.add_job(application)
-                    new_applications.append(application)
-                    logger.info(f"Added new job application for {application['job_data'].get('job_title')} at {application['job_data'].get('employer_name')}")
-            
-            # Send notifications for new jobs
-            if new_applications:
-                logger.info(f"Sending notifications for {len(new_applications)} new job opportunities")
-                self.notifier.send_job_notifications(new_applications)
+                # Create simple application packages with mock data
+                application_packages = []
+                for job in jobs:
+                    # Create mock analysis
+                    analysis = {
+                        "skill_match_percentage": 85,
+                        "key_requirements": [
+                            "Python programming",
+                            "JavaScript/React experience",
+                            "Database knowledge (SQL, NoSQL)",
+                            "Team collaboration skills",
+                            "Problem-solving abilities"
+                        ],
+                        "explanation": "This job is a good match for your skills in web development and programming."
+                    }
+                    
+                    # Create a mock application package
+                    app_package = {
+                        "job": job,
+                        "analysis": analysis,
+                        "status": "ready_to_apply",
+                        "materials": {
+                            "cover_letter": "Dear Hiring Manager,\n\nI am writing to express my interest in the position. My experience with Python and JavaScript makes me a good fit.\n\nSincerely,\nGitonga Nyaga"
+                        }
+                    }
+                    application_packages.append(app_package)
+                
+                # Get existing job IDs from the database
+                existing_jobs = self.db.get_all_jobs()
+                existing_job_ids = set()
+                
+                # Extract job IDs from the database entries
+                for job_id, job_entry in existing_jobs.items():
+                    existing_job_ids.add(job_id)
+                
+                # Filter out jobs that are already in the database
+                new_job_packages = []
+                new_jobs = []
+                
+                for app_package in application_packages:
+                    job = app_package["job"]
+                    job_id = job.get("job_id")
+                    
+                    if job_id not in existing_job_ids:
+                        new_job_packages.append(app_package)
+                        new_jobs.append(job)
+                
+                # Store new jobs in the database
+                for job in new_jobs:
+                    self.db.add_job(job)
+                
+                # Send email notifications if there are any new jobs
+                if new_job_packages:
+                    logger.info(f"Sending notifications for {len(new_job_packages)} jobs")
+                    self.email_notifier.send_job_notifications(new_job_packages)
+                    logger.info("Email notifications sent successfully")
+                else:
+                    logger.info("No new job opportunities found")
             else:
-                logger.info("No new job opportunities found")
-            
-            return True
-            
+                # Use the normal search process
+                processed_jobs = job_searcher.search_jobs()
+                
+                if processed_jobs:
+                    # These are already application packages processed by the AI
+                    # Get existing job IDs from the database
+                    existing_jobs = self.db.get_all_jobs()
+                    existing_job_ids = set()
+                    
+                    # Extract job IDs from the database entries
+                    for job_id, job_entry in existing_jobs.items():
+                        existing_job_ids.add(job_id)
+                    
+                    # Filter out jobs that are already in the database
+                    new_job_packages = []
+                    new_jobs = []
+                    
+                    for app_package in processed_jobs:
+                        job = app_package["job"]
+                        job_id = job.get("job_id")
+                        
+                        if job_id not in existing_job_ids:
+                            new_job_packages.append(app_package)
+                            new_jobs.append(job)
+                    
+                    # Store new jobs in the database
+                    for job in new_jobs:
+                        self.db.add_job(job)
+                    
+                    # Send email notifications if there are any new jobs
+                    if new_job_packages:
+                        logger.info(f"Sending notifications for {len(new_job_packages)} jobs")
+                        self.email_notifier.send_job_notifications(new_job_packages)
+                        logger.info("Email notifications sent successfully")
+                    else:
+                        logger.info("No new job opportunities found")
+                else:
+                    logger.info("No job opportunities found")
+        
         except Exception as e:
-            logger.error(f"Error in job alert process: {str(e)}")
-            return False
+            logger.error(f"Error in job alert system: {str(e)}")
     
     def run_continuous(self):
         """Run the job alert system continuously"""

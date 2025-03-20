@@ -22,10 +22,13 @@ load_dotenv()
 
 class JobSearcher:
     def __init__(self):
+        # Check if we should use mock data for testing
+        self.use_mock_data = os.getenv("USE_MOCK_DATA", "false").lower() == "true"
+        
         self.api_key = os.getenv("JSEARCH_API_KEY")
         self.api_host = os.getenv("JSEARCH_API_HOST")
         
-        if not self.api_key or not self.api_host:
+        if not self.use_mock_data and (not self.api_key or not self.api_host):
             raise ValueError("API credentials not found in .env file")
         
         self.base_url = f"https://{self.api_host}"
@@ -33,6 +36,21 @@ class JobSearcher:
             'x-rapidapi-key': self.api_key,
             'x-rapidapi-host': self.api_host
         }
+        
+        # Get job titles to search for
+        job_titles_str = os.getenv("JOB_TITLES", "software developer")
+        self.job_titles = [title.strip() for title in job_titles_str.split(",")]
+        
+        # Get locations to search in
+        job_locations_str = os.getenv("JOB_LOCATIONS", "usa,remote")
+        self.job_locations = [loc.strip() for loc in job_locations_str.split(",")]
+        
+        # Get employment types to filter by
+        employment_types_str = os.getenv("JOB_EMPLOYMENT_TYPES", "FULLTIME,CONTRACTOR")
+        self.employment_types = [type.strip() for type in employment_types_str.split(",")]
+        
+        # Check if we should search for remote jobs only
+        self.remote_jobs_only = os.getenv("JOB_REMOTE", "false").lower() == "true"
         
         # Get min salary for filtering
         self.min_salary = int(os.getenv("MIN_SALARY", "0"))
@@ -64,22 +82,27 @@ class JobSearcher:
         all_jobs = []
         processed_jobs = []
         
-        # Search for each job title in each location
-        for title in self.job_titles:
-            for location in self.job_locations:
-                logger.info(f"Searching for {title} in {location}")
-                
-                try:
-                    jobs = self._search_single_query(title, location)
-                    if jobs:
-                        all_jobs.extend(jobs)
-                        logger.info(f"Found {len(jobs)} jobs for {title} in {location}")
+        # If using mock data, use sample data instead of API calls
+        if self.use_mock_data:
+            logger.info("Using mock data for job search")
+            all_jobs = self._get_mock_jobs()
+        else:
+            # Search for each job title in each location
+            for title in self.job_titles:
+                for location in self.job_locations:
+                    logger.info(f"Searching for {title} in {location}")
                     
-                    # Add delay between requests
-                    time.sleep(self.request_delay)
-                    
-                except Exception as e:
-                    logger.error(f"Error searching for {title} in {location}: {str(e)}")
+                    try:
+                        jobs = self._search_single_query(title, location)
+                        if jobs:
+                            all_jobs.extend(jobs)
+                            logger.info(f"Found {len(jobs)} jobs for {title} in {location}")
+                        
+                        # Add delay between requests
+                        time.sleep(self.request_delay)
+                        
+                    except Exception as e:
+                        logger.error(f"Error searching for {title} in {location}: {str(e)}")
         
         # Remove duplicates based on job ID
         unique_jobs = self._remove_duplicates(all_jobs)
@@ -116,11 +139,14 @@ class JobSearcher:
         params = {
             "query": f"{query} in {location}",
             "page": "1",
-            "num_pages": "1",
-            "employment_types": ",".join(self.employment_types)
+            "num_pages": "1"
         }
         
-        if self.remote_jobs_only:
+        # Add employment types if available
+        if hasattr(self, 'employment_types') and self.employment_types:
+            params["employment_types"] = ",".join(self.employment_types)
+        
+        if hasattr(self, 'remote_jobs_only') and self.remote_jobs_only:
             params["remote_jobs_only"] = "true"
         
         headers = {
@@ -137,7 +163,7 @@ class JobSearcher:
             
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed: {str(e)}")
-            if response.status_code == 429:
+            if hasattr(response, 'status_code') and response.status_code == 429:
                 logger.warning("Rate limit exceeded. Waiting before next request.")
                 time.sleep(self.request_delay * 2)  # Double delay on rate limit
             return []
@@ -338,4 +364,381 @@ class JobSearcher:
         if priorities:
             filtered_jobs.sort(key=lambda j: j.get('priority_match', False), reverse=True)
         
-        return filtered_jobs 
+        return filtered_jobs
+
+    def _get_mock_jobs(self):
+        """
+        Generate mock job data for testing with various quality levels.
+        Includes both regular jobs and a few exceptional opportunities.
+        
+        Returns:
+            list: Sample job listings of varying quality
+        """
+        logger.info("Generating mock job data for testing")
+        
+        # Helper function to generate random timestamps within the last week
+        def random_timestamp():
+            import random
+            # Random time between now and 7 days ago
+            days_ago = random.randint(0, 7)
+            hours_ago = random.randint(0, 23)
+            return int(time.time() - (days_ago * 86400) - (hours_ago * 3600))
+        
+        # Create a variety of job listings - some great, some mediocre
+        mock_jobs = [
+            # GOLDEN OPPORTUNITY 1: High-paying remote position at a top company
+            {
+                "job_id": "golden-job-1",
+                "job_title": "Senior Full Stack Engineer",
+                "employer_name": "Tech Innovations Inc.",
+                "job_city": "Remote",
+                "job_country": "US",
+                "job_min_salary": 140000,
+                "job_max_salary": 180000,
+                "job_salary_period": "yearly",
+                "job_description": """
+                EXCEPTIONAL OPPORTUNITY: Tech Innovations Inc. is seeking a Senior Full Stack Engineer to join our growing team!
+
+                About Us:
+                We're a fast-growing tech company focusing on AI-driven solutions that are changing how businesses operate. We've secured $50M in Series B funding and are expanding our engineering team.
+
+                What You'll Do:
+                - Build scalable, robust applications using modern technologies
+                - Lead development of new product features from conception to deployment
+                - Mentor junior engineers and foster technical excellence
+                - Collaborate with cross-functional teams to define requirements
+
+                Required Skills:
+                - 4+ years experience with JavaScript/TypeScript, React, and Node.js
+                - Strong understanding of database systems (SQL and NoSQL)
+                - Experience with cloud platforms (AWS, Azure, or GCP)
+                - Track record of leading complex technical projects
+
+                Benefits:
+                - Competitive salary ($140K-$180K)
+                - 100% remote work with flexible hours
+                - Comprehensive health benefits
+                - 401(k) matching
+                - 4 weeks paid vacation
+                - Professional development budget
+                - Home office stipend
+                
+                This is a rare opportunity to join a team that's making a real impact with cutting-edge technology. Apply now to grow your career with us!
+                """,
+                "job_apply_link": "https://example.com/apply/golden1",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": True,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "JavaScript", "TypeScript", "React", "Node.js", "AWS", 
+                    "SQL", "NoSQL", "System Design", "Team Leadership", "CI/CD"
+                ],
+                "job_required_experience": {"minimum_years": 4, "maximum_years": 8},
+                "job_benefits": [
+                    "Health Insurance", "401(k) Matching", "Remote Work", 
+                    "Flexible Hours", "Professional Development", "Home Office Stipend"
+                ],
+                "job_highlights": {
+                    "Qualifications": [
+                        "4+ years experience with JavaScript/TypeScript", 
+                        "Experience with React and Node.js",
+                        "Strong understanding of database systems",
+                        "Experience with cloud platforms"
+                    ],
+                    "Responsibilities": [
+                        "Build scalable applications", 
+                        "Lead development of new product features",
+                        "Mentor junior engineers",
+                        "Collaborate with cross-functional teams"
+                    ],
+                    "Benefits": [
+                        "Competitive salary", 
+                        "100% remote work", 
+                        "Comprehensive health benefits",
+                        "4 weeks paid vacation"
+                    ]
+                }
+            },
+            
+            # GOLDEN OPPORTUNITY 2: High-quality position in Oklahoma City
+            {
+                "job_id": "golden-job-2",
+                "job_title": "Python Backend Developer",
+                "employer_name": "DataWorks Solutions",
+                "job_city": "Oklahoma City",
+                "job_country": "US",
+                "job_min_salary": 110000,
+                "job_max_salary": 135000,
+                "job_salary_period": "yearly",
+                "job_description": """
+                EXCELLENT OPPORTUNITY: Join DataWorks Solutions as a Python Backend Developer in our Oklahoma City office!
+
+                About the Role:
+                We're looking for a talented Python Developer to help build our next-generation data processing platform. This is a key position working on core systems that process millions of data points daily.
+
+                What You'll Do:
+                - Develop high-performance backend services using Python
+                - Design and implement RESTful APIs and microservices
+                - Work with large-scale databases and data processing pipelines
+                - Participate in system architecture decisions
+
+                Required Skills:
+                - Strong Python programming skills
+                - Experience with Django or Flask frameworks
+                - Knowledge of SQL and database optimization
+                - Understanding of RESTful API design principles
+                - Comfortable with Git version control
+
+                Benefits:
+                - Competitive salary ($110K-$135K)
+                - Modern downtown office with standing desks
+                - Comprehensive benefits package with health, dental, and vision
+                - Flexible work schedule with 2 days WFH option
+                - Generous PTO policy
+                - Professional growth opportunities
+                
+                This position offers an excellent opportunity to work on challenging technical problems with a growing company right here in Oklahoma City!
+                """,
+                "job_apply_link": "https://example.com/apply/golden2",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": False,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "Python", "Django", "Flask", "SQL", "REST APIs", 
+                    "Microservices", "Git", "PostgreSQL", "Docker"
+                ],
+                "job_required_experience": {"minimum_years": 3, "maximum_years": 6},
+                "job_benefits": [
+                    "Health Insurance", "Dental Insurance", "Vision Insurance", 
+                    "Flexible Schedule", "Professional Development", "Generous PTO"
+                ],
+                "job_highlights": {
+                    "Qualifications": [
+                        "Strong Python programming skills", 
+                        "Experience with Django or Flask",
+                        "Knowledge of SQL and database optimization",
+                        "Understanding of RESTful API design"
+                    ],
+                    "Responsibilities": [
+                        "Develop high-performance backend services", 
+                        "Design and implement RESTful APIs",
+                        "Work with large-scale databases",
+                        "Participate in architecture decisions"
+                    ],
+                    "Benefits": [
+                        "Competitive salary", 
+                        "Modern downtown office", 
+                        "Comprehensive benefits package",
+                        "Flexible work schedule"
+                    ]
+                }
+            },
+            
+            # Standard job 1: Mid-level developer position
+            {
+                "job_id": "standard-job-1",
+                "job_title": "JavaScript Developer",
+                "employer_name": "WebSoft Solutions",
+                "job_city": "Remote",
+                "job_country": "US",
+                "job_min_salary": 85000,
+                "job_max_salary": 105000,
+                "job_salary_period": "yearly",
+                "job_description": """
+                WebSoft Solutions is seeking a JavaScript Developer to join our development team.
+
+                Responsibilities:
+                - Develop responsive web applications using JavaScript frameworks
+                - Write clean, maintainable code
+                - Troubleshoot and debug issues
+                - Collaborate with the design team
+
+                Requirements:
+                - 2+ years experience with JavaScript
+                - Experience with React or Angular
+                - Understanding of RESTful APIs
+                - Basic knowledge of HTML/CSS
+                
+                Benefits include health insurance, 401(k), and flexible work options.
+                """,
+                "job_apply_link": "https://example.com/apply/standard1",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": True,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "JavaScript", "React", "Angular", "HTML", "CSS", "RESTful APIs"
+                ],
+                "job_required_experience": {"minimum_years": 2, "maximum_years": 4}
+            },
+            
+            # Standard job 2: Local position
+            {
+                "job_id": "standard-job-2",
+                "job_title": "Junior Web Developer",
+                "employer_name": "Digital Marketing Group",
+                "job_city": "Oklahoma City",
+                "job_country": "US",
+                "job_min_salary": 60000,
+                "job_max_salary": 75000,
+                "job_salary_period": "yearly",
+                "job_description": """
+                Digital Marketing Group is looking for a Junior Web Developer to assist with client websites.
+
+                Responsibilities:
+                - Develop and maintain client websites
+                - Implement designs in HTML/CSS
+                - Update website content
+                - Assist with WordPress customizations
+
+                Requirements:
+                - Knowledge of HTML, CSS, and JavaScript
+                - Experience with WordPress
+                - Basic understanding of PHP
+                - Attention to detail
+                """,
+                "job_apply_link": "https://example.com/apply/standard2",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": False,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "HTML", "CSS", "JavaScript", "WordPress", "PHP"
+                ],
+                "job_required_experience": {"minimum_years": 0, "maximum_years": 2}
+            },
+            
+            # Standard job 3: Contract position
+            {
+                "job_id": "standard-job-3",
+                "job_title": "React Developer (Contract)",
+                "employer_name": "TechStaff Inc.",
+                "job_city": "Remote",
+                "job_country": "US",
+                "job_min_salary": 50,
+                "job_max_salary": 70,
+                "job_salary_period": "hourly",
+                "job_description": """
+                TechStaff Inc. is seeking a React Developer for a 6-month contract role.
+
+                Responsibilities:
+                - Build user interfaces using React
+                - Integrate with backend APIs
+                - Help maintain existing applications
+                - Write unit tests
+
+                Requirements:
+                - Experience with React
+                - Understanding of JavaScript, HTML, and CSS
+                - Able to work independently
+                - Available for full-time hours (40 hours/week)
+                """,
+                "job_apply_link": "https://example.com/apply/standard3",
+                "job_employment_type": "CONTRACTOR",
+                "job_is_remote": True,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "React", "JavaScript", "HTML", "CSS", "Jest"
+                ],
+                "job_required_experience": {"minimum_years": 1, "maximum_years": 3}
+            },
+            
+            # Low-quality job 1: Suspicious high-demands low-pay
+            {
+                "job_id": "low-job-1",
+                "job_title": "Full Stack Developer (Entry Level)",
+                "employer_name": "Budget Applications LLC",
+                "job_city": "Remote",
+                "job_country": "US",
+                "job_min_salary": 40000,
+                "job_max_salary": 45000,
+                "job_salary_period": "yearly",
+                "job_description": """
+                Budget Applications is hiring a Full Stack Developer with a can-do attitude!
+
+                What we're looking for:
+                - Proficiency in JavaScript, React, Node.js, Express, MongoDB
+                - Experience with AWS, Docker, Kubernetes
+                - Knowledge of Python, Java, and C#
+                - Excellent communication skills
+                - Ability to work under tight deadlines
+                - Available for occasional weekend work
+                - Willing to be on-call
+
+                This is an entry-level position with great learning opportunities!
+                """,
+                "job_apply_link": "https://example.com/apply/low1",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": True,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "JavaScript", "React", "Node.js", "Express", "MongoDB", 
+                    "AWS", "Docker", "Kubernetes", "Python", "Java", "C#"
+                ],
+                "job_required_experience": {"minimum_years": 0, "maximum_years": 1}
+            },
+            
+            # Low-quality job 2: Vague description
+            {
+                "job_id": "low-job-2",
+                "job_title": "Web Developer",
+                "employer_name": "Generic IT Solutions",
+                "job_city": "Oklahoma City",
+                "job_country": "US",
+                "job_min_salary": 0,
+                "job_max_salary": 0,
+                "job_salary_period": "",
+                "job_description": """
+                We are looking for a web developer to join our team. The ideal candidate will be responsible for coding and developing websites and web applications. Salary is competitive and based on experience.
+
+                Required skills:
+                - Programming knowledge
+                - Web development experience
+                - Good communication
+                - Team player
+                """,
+                "job_apply_link": "https://example.com/apply/low2",
+                "job_employment_type": "FULLTIME",
+                "job_is_remote": False,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "Web Development"
+                ],
+                "job_required_experience": {"minimum_years": 1, "maximum_years": 3}
+            },
+            
+            # Part-time job
+            {
+                "job_id": "part-time-job-1",
+                "job_title": "Frontend Developer (Part-Time)",
+                "employer_name": "Creative Studios",
+                "job_city": "Remote",
+                "job_country": "US",
+                "job_min_salary": 30,
+                "job_max_salary": 40,
+                "job_salary_period": "hourly",
+                "job_description": """
+                Creative Studios is seeking a part-time Frontend Developer to assist with various design projects.
+
+                Responsibilities:
+                - Implement frontend designs using HTML, CSS, and JavaScript
+                - Create responsive web pages
+                - Optimize sites for performance and usability
+                - 20 hours per week, flexible scheduling
+
+                Requirements:
+                - Strong HTML, CSS, and JavaScript skills
+                - Knowledge of responsive design principles
+                - Portfolio of previous work
+                - Available at least 20 hours per week
+                """,
+                "job_apply_link": "https://example.com/apply/parttime1",
+                "job_employment_type": "PARTTIME",
+                "job_is_remote": True,
+                "job_posted_at_timestamp": random_timestamp(),
+                "job_required_skills": [
+                    "HTML", "CSS", "JavaScript", "Responsive Design"
+                ],
+                "job_required_experience": {"minimum_years": 1, "maximum_years": 3}
+            }
+        ]
+        
+        return mock_jobs 

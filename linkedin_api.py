@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import time
+import random
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from urllib.parse import quote
 
@@ -12,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class LinkedInAPI:
     """
-    Client for the LinkedIn Data API from RapidAPI.
-    Used to fetch company information and posts from LinkedIn.
+    Client for the LinkedIn Data API.
+    Used to search for job listings from LinkedIn companies.
     """
     
     def __init__(self):
@@ -22,220 +24,275 @@ class LinkedInAPI:
         self.api_key = os.getenv("LINKEDIN_API_KEY", os.getenv("JSEARCH_API_KEY"))
         self.api_host = os.getenv("LINKEDIN_API_HOST", "linkedin-data-api.p.rapidapi.com")
         
-        if not self.api_key:
+        # Get list of companies to monitor
+        companies_str = os.getenv("LINKEDIN_COMPANIES", "")
+        self.companies = [c.strip() for c in companies_str.split(",")] if companies_str else []
+        
+        # Check if we should use mock data for testing
+        self.use_mock_data = os.getenv("USE_MOCK_DATA", "false").lower() == "true"
+        
+        if not self.api_key and not self.use_mock_data:
             logger.warning("LinkedIn API key not found in environment variables")
     
-    def get_company_posts(self, company_username, start=0, limit=10):
+    def get_company_jobs(self, company_name):
         """
-        Get posts from a LinkedIn company page.
+        Get job listings for a specific company.
         
         Args:
-            company_username (str): The LinkedIn username of the company
-            start (int): The starting index for pagination
-            limit (int): The maximum number of posts to retrieve
+            company_name (str): The name of the company to get jobs for
             
         Returns:
-            dict: Company posts data
+            list: A list of job objects for the specified company
         """
-        try:
-            # Build the endpoint
-            endpoint = f"/get-company-posts?username={quote(company_username)}&start={start}"
+        # Use mock data if enabled
+        if self.use_mock_data:
+            logger.info(f"[MOCK] Getting LinkedIn jobs for company: {company_name}")
+            return self._get_mock_company_jobs(company_name)
+        
+        # Implement the actual API call here when needed
+        logger.warning("LinkedIn API call not implemented yet. Mock data or other API sources will be used.")
+        return []
+    
+    def search_all_companies(self):
+        """
+        Search for jobs across all configured companies.
+        
+        Returns:
+            list: A list of job objects from all monitored companies
+        """
+        all_jobs = []
+        
+        for company in self.companies:
+            logger.info(f"Searching LinkedIn jobs for company: {company}")
+            company_jobs = self.get_company_jobs(company)
+            all_jobs.extend(company_jobs)
             
             # Add delay to avoid rate limiting
-            api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
-            time.sleep(api_delay)
-            
-            # Set up the connection
-            conn = http.client.HTTPSConnection(self.api_host)
-            
-            # Set up the headers
-            headers = {
-                'x-rapidapi-key': self.api_key,
-                'x-rapidapi-host': self.api_host
-            }
-            
-            # Make the request
-            logger.info(f"Fetching LinkedIn posts for company: {company_username}")
-            conn.request("GET", endpoint, headers=headers)
-            
-            # Get the response
-            res = conn.getresponse()
-            
-            # Read and parse the data
-            data = res.read()
-            posts_data = json.loads(data.decode("utf-8"))
-            
-            # Close the connection
-            conn.close()
-            
-            logger.info(f"Retrieved {len(posts_data.get('data', []))} LinkedIn posts for {company_username}")
-            return posts_data
-            
-        except Exception as e:
-            logger.error(f"Error fetching LinkedIn company posts: {str(e)}")
-            return {"data": []}
+            if not self.use_mock_data and len(self.companies) > 1:
+                api_delay = float(os.getenv("API_REQUEST_DELAY", "1.0"))
+                time.sleep(api_delay)
+        
+        logger.info(f"Found {len(all_jobs)} total jobs from LinkedIn companies")
+        return all_jobs
     
-    def search_jobs_from_posts(self, companies, keywords=None):
+    def _get_mock_company_jobs(self, company_name):
         """
-        Search for job-related posts from a list of companies.
+        Generate mock job data for testing purposes.
         
         Args:
-            companies (list): List of company LinkedIn usernames to search
-            keywords (list): List of job-related keywords to look for
+            company_name (str): The company to generate mock data for
             
         Returns:
-            list: Job-related posts formatted as job listings
+            list: A list of mock job objects
         """
-        if keywords is None:
-            keywords = ["hiring", "job", "career", "position", "opportunity", "opening", "apply", "join our team"]
+        # Determine how many jobs to generate (1-3)
+        num_jobs = random.randint(1, 3)
         
-        job_posts = []
+        # Normalize the company name for matching
+        company_lower = company_name.lower()
         
-        for company in companies:
-            try:
-                # Get company posts
-                company_data = self.get_company_posts(company)
-                posts = company_data.get("data", [])
-                
-                # Filter for job-related posts
-                for post in posts:
-                    post_text = post.get("text", "").lower()
-                    
-                    # Check if the post mentions any job-related keywords
-                    if any(keyword.lower() in post_text for keyword in keywords):
-                        # Format as a job listing
-                        job_post = self._format_post_as_job(post, company)
-                        if job_post:
-                            job_posts.append(job_post)
-            
-            except Exception as e:
-                logger.error(f"Error processing LinkedIn posts for {company}: {str(e)}")
-                continue
-        
-        logger.info(f"Found {len(job_posts)} job-related posts from LinkedIn companies")
-        return job_posts
-    
-    def _format_post_as_job(self, post, company_username):
-        """
-        Format a LinkedIn post as a job listing.
-        
-        Args:
-            post (dict): The LinkedIn post data
-            company_username (str): The company's LinkedIn username
-            
-        Returns:
-            dict: Formatted job listing or None if not job-related
-        """
-        try:
-            # Generate a unique ID for the post
-            post_id = post.get("postId", post.get("id", ""))
-            if not post_id:
-                return None
-            
-            job_id = f"linkedin_{post_id}"
-            
-            # Extract post text and try to identify job title
-            post_text = post.get("text", "")
-            title_candidates = [
-                line for line in post_text.split("\n") 
-                if any(keyword in line.lower() for keyword in ["hiring", "job", "position", "role", "opening"])
+        # Job titles based on company
+        if "google" in company_lower:
+            job_titles = [
+                "Software Engineer", 
+                "Senior Software Engineer",
+                "Product Manager", 
+                "UX Designer", 
+                "Data Scientist"
             ]
-            
-            # Default job title if we can't extract one
-            job_title = "Job Opening"
-            if title_candidates:
-                job_title = title_candidates[0][:50]  # Limit title length
-            
-            # Extract company details
-            company_name = post.get("companyName", company_username)
-            company_logo = post.get("companyLogo", "")
-            
-            # Format as job listing
-            job_listing = {
-                "job_id": job_id,
-                "job_title": job_title,
-                "job_description": post_text,
-                "employer_name": company_name,
-                "employer_logo": company_logo,
-                "job_apply_link": post.get("postUrl", ""),
-                "job_city": "",  # LinkedIn posts may not include location
-                "job_country": "",
-                "job_posted_at_timestamp": post.get("postDate", ""),
-                "job_min_salary": None,
-                "job_max_salary": None,
-                "job_salary_period": None,
-                "job_salary_currency": None,
-                "job_employment_type": "",
-                "job_is_remote": None,
-                "source": "linkedin_post"
-            }
-            
-            return job_listing
-            
-        except Exception as e:
-            logger.error(f"Error formatting LinkedIn post as job: {str(e)}")
-            return None
-    
-    def get_company_details(self, company_username):
-        """
-        Get details about a LinkedIn company.
+            locations = ["Mountain View, CA", "New York, NY", "Seattle, WA", "Remote"]
+        elif "microsoft" in company_lower:
+            job_titles = [
+                "Software Engineer", 
+                "Program Manager",
+                "Cloud Solutions Architect", 
+                "DevOps Engineer", 
+                "AI Researcher"
+            ]
+            locations = ["Redmond, WA", "Boston, MA", "Austin, TX", "Remote"]
+        elif "amazon" in company_lower:
+            job_titles = [
+                "Software Development Engineer", 
+                "Technical Program Manager",
+                "Solutions Architect", 
+                "Systems Engineer", 
+                "Data Engineer"
+            ]
+            locations = ["Seattle, WA", "Arlington, VA", "Nashville, TN", "Remote"]
+        elif "apple" in company_lower:
+            job_titles = [
+                "Software Engineer", 
+                "Machine Learning Engineer",
+                "Hardware Engineer", 
+                "iOS Developer", 
+                "Product Designer"
+            ]
+            locations = ["Cupertino, CA", "Austin, TX", "New York, NY", "Remote"]
+        elif "meta" in company_lower or "facebook" in company_lower:
+            job_titles = [
+                "Software Engineer", 
+                "Research Scientist",
+                "Product Manager", 
+                "Data Engineer", 
+                "Privacy Engineer"
+            ]
+            locations = ["Menlo Park, CA", "New York, NY", "Seattle, WA", "Remote"]
+        else:
+            job_titles = [
+                "Software Engineer", 
+                "Full Stack Developer",
+                "DevOps Engineer", 
+                "Product Manager", 
+                "Data Scientist"
+            ]
+            locations = ["New York, NY", "San Francisco, CA", "Chicago, IL", "Remote"]
         
-        Args:
-            company_username (str): The LinkedIn username of the company
+        # Mock jobs
+        mock_jobs = []
+        
+        # Add one premium job opportunity if it's a top company
+        top_companies = ["google", "microsoft", "amazon", "apple", "meta", "facebook"]
+        if any(tc in company_lower for tc in top_companies) and random.random() < 0.7:  # 70% chance
+            premium_job = self._create_premium_job(company_name, job_titles, locations)
+            mock_jobs.append(premium_job)
+            num_jobs -= 1  # Reduce regular jobs by 1
+        
+        # Add regular jobs
+        for i in range(num_jobs):
+            job = self._create_regular_job(company_name, job_titles, locations, i)
+            mock_jobs.append(job)
+        
+        logger.info(f"[MOCK] Generated {len(mock_jobs)} mock LinkedIn jobs for {company_name}")
+        return mock_jobs
+    
+    def _create_premium_job(self, company_name, job_titles, locations):
+        """Create a premium job opportunity at a top company"""
+        # Generate random dates (1-3 days ago)
+        days_ago = random.randint(1, 3)
+        post_date = datetime.now() - timedelta(days=days_ago)
+        timestamp = int(post_date.timestamp())
+        
+        # Select job title and location
+        job_title = random.choice(job_titles)
+        location = random.choice(locations)
+        
+        # Premium jobs have higher salaries
+        min_salary = random.randint(130000, 160000)
+        max_salary = min_salary + random.randint(20000, 40000)
+        
+        # Create the premium job
+        return {
+            "job_id": f"linkedin-premium-{company_name.lower()}-{timestamp}",
+            "job_title": f"Senior {job_title}",
+            "job_description": f"""
+            EXCEPTIONAL OPPORTUNITY at {company_name}!
             
-        Returns:
-            dict: Company details
-        """
-        try:
-            # Build the endpoint
-            endpoint = f"/get-company-details?username={quote(company_username)}"
+            About This Role:
+            We are looking for an exceptional Senior {job_title} to join our team and help shape the future of our technology. This is a high-visibility role working on products used by millions of people.
             
-            # Set up the connection
-            conn = http.client.HTTPSConnection(self.api_host)
+            What You'll Do:
+            - Lead development of cutting-edge features and systems
+            - Collaborate with product and design teams to define requirements
+            - Architect solutions that scale to millions of users
+            - Mentor junior team members and provide technical leadership
             
-            # Set up the headers
-            headers = {
-                'x-rapidapi-key': self.api_key,
-                'x-rapidapi-host': self.api_host
-            }
+            Requirements:
+            - 5+ years of professional experience in software development
+            - Strong problem-solving skills and attention to detail
+            - Experience with large-scale distributed systems
+            - Excellent communication and collaboration skills
             
-            # Make the request
-            logger.info(f"Fetching LinkedIn details for company: {company_username}")
-            conn.request("GET", endpoint, headers=headers)
+            Benefits:
+            - Competitive salary and equity package
+            - Comprehensive health, dental, and vision insurance
+            - Flexible work arrangements
+            - Generous vacation policy
+            - Professional development budget
+            - And much more!
             
-            # Get the response
-            res = conn.getresponse()
+            This is a rare opportunity to work on impactful projects at one of the world's leading technology companies.
+            """,
+            "employer_name": company_name,
+            "job_apply_link": f"https://careers.{company_name.lower().replace(' ', '')}.com/apply/{timestamp}",
+            "job_city": location.split(",")[0].strip(),
+            "job_country": "US",
+            "job_posted_at_timestamp": timestamp,
+            "job_min_salary": min_salary,
+            "job_max_salary": max_salary,
+            "job_salary_period": "yearly",
+            "job_salary_currency": "USD",
+            "job_employment_type": "FULLTIME",
+            "job_is_remote": "Remote" in location,
+            "source": "linkedin",
+            "is_premium": True
+        }
+    
+    def _create_regular_job(self, company_name, job_titles, locations, index):
+        """Create a regular job at the company"""
+        # Generate random dates (3-7 days ago)
+        days_ago = random.randint(3, 7)
+        post_date = datetime.now() - timedelta(days=days_ago)
+        timestamp = int(post_date.timestamp())
+        
+        # Select job title and location
+        job_title = random.choice(job_titles)
+        location = random.choice(locations)
+        
+        # Regular jobs have standard salaries
+        min_salary = random.randint(90000, 120000)
+        max_salary = min_salary + random.randint(10000, 30000)
+        
+        # Create the regular job
+        return {
+            "job_id": f"linkedin-{company_name.lower()}-{timestamp}-{index}",
+            "job_title": job_title,
+            "job_description": f"""
+            {company_name} is seeking a {job_title} to join our team in {location}.
             
-            # Read and parse the data
-            data = res.read()
-            company_data = json.loads(data.decode("utf-8"))
+            Responsibilities:
+            - Design and implement software solutions
+            - Collaborate with cross-functional teams
+            - Write clean, maintainable code
+            - Participate in code reviews and testing
             
-            # Close the connection
-            conn.close()
+            Requirements:
+            - 3+ years of professional experience
+            - Strong programming skills
+            - Bachelor's degree in Computer Science or related field
+            - Good communication skills
             
-            logger.info(f"Retrieved details for LinkedIn company: {company_username}")
-            return company_data
-            
-        except Exception as e:
-            logger.error(f"Error fetching LinkedIn company details: {str(e)}")
-            return {}
+            Benefits include competitive salary, health insurance, and flexible work arrangements.
+            """,
+            "employer_name": company_name,
+            "job_apply_link": f"https://careers.{company_name.lower().replace(' ', '')}.com/apply/{timestamp}-{index}",
+            "job_city": location.split(",")[0].strip(),
+            "job_country": "US",
+            "job_posted_at_timestamp": timestamp,
+            "job_min_salary": min_salary,
+            "job_max_salary": max_salary,
+            "job_salary_period": "yearly",
+            "job_salary_currency": "USD",
+            "job_employment_type": "FULLTIME",
+            "job_is_remote": "Remote" in location,
+            "source": "linkedin"
+        }
 
 # For testing the module directly
 if __name__ == "__main__":
     linkedin_api = LinkedInAPI()
     
-    # Test getting company posts
-    company = "microsoft"
-    posts = linkedin_api.get_company_posts(company)
-    print(f"Found {len(posts.get('data', []))} posts for {company}")
+    # Override mock mode for testing
+    linkedin_api.use_mock_data = True
     
-    # Test searching for job-related posts
-    job_posts = linkedin_api.search_jobs_from_posts(["microsoft", "google", "amazon"])
-    print(f"Found {len(job_posts)} job-related posts")
+    # Test getting jobs for different companies
+    companies_to_test = ["Google", "Microsoft", "Amazon", "Apple", "Meta"]
     
-    # Print sample of job posts
-    for i, job in enumerate(job_posts[:3]):
-        print(f"\nJob {i+1}: {job['job_title']}")
-        print(f"Company: {job['employer_name']}")
-        print(f"Apply: {job['job_apply_link']}")
-        print(f"Description preview: {job['job_description'][:100]}...") 
+    for company in companies_to_test:
+        jobs = linkedin_api.get_company_jobs(company)
+        print(f"\n{company} Jobs ({len(jobs)}):")
+        for job in jobs:
+            print(f"- {job['job_title']} ({job['job_city']}) - ${job['job_min_salary']}-${job['job_max_salary']}")
+            
+    # Test getting all company jobs
+    all_jobs = linkedin_api.search_all_companies()
+    print(f"\nTotal Jobs: {len(all_jobs)}") 
