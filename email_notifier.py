@@ -29,20 +29,51 @@ class EmailNotifier:
         self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
         
-        # Dry run mode (for testing without sending actual emails)
-        self.dry_run = os.getenv("EMAIL_DRY_RUN", "false").lower() == "true"
+        # Default to dry run mode for safety
+        self.dry_run = True
+        logger.info("Initial dry run mode: True (safety default)")
+        
+        # Try to get the dry run setting from environment
+        try:
+            dry_run_value = os.getenv("EMAIL_DRY_RUN", "true")
+            logger.info(f"EMAIL_DRY_RUN from env: '{dry_run_value}'")
+            
+            # If dry_run_value doesn't look right, try to read it directly from the file
+            if dry_run_value.startswith("'") or dry_run_value.startswith('"'):
+                try:
+                    # Try to read directly from .env file
+                    with open('.env', 'r') as f:
+                        for line in f:
+                            if line.strip().startswith('EMAIL_DRY_RUN='):
+                                dry_run_value = line.strip().split('=', 1)[1].strip("'\"")
+                                logger.info(f"EMAIL_DRY_RUN read directly from file: '{dry_run_value}'")
+                                break
+                except Exception as e:
+                    logger.warning(f"Error reading .env file directly: {e}")
+            
+            # Parse the value with various checks
+            if isinstance(dry_run_value, str):
+                dry_run_value = dry_run_value.lower().strip().strip("'\"")
+                if dry_run_value in ["false", "0", "no", "f", "n", "off"]:
+                    self.dry_run = False
+                    logger.info("Dry run mode disabled based on environment setting")
+        except Exception as e:
+            logger.warning(f"Error parsing EMAIL_DRY_RUN: {e}. Using default (True)")
+        
+        logger.info(f"Final email dry run mode: {self.dry_run}")
         
         # Validate email settings if not in dry run mode
         if not self.dry_run and not all([self.sender_email, self.sender_password, self.recipient_email]):
             logger.warning("Email settings incomplete. Will use dry run mode.")
             self.dry_run = True
     
-    def send_job_notifications(self, applications):
+    def send_job_notifications(self, applications, force_dry_run=False):
         """
         Send email notifications for new job opportunities
         
         Args:
             applications (list): List of job application packages
+            force_dry_run (bool): If True, always use dry run mode regardless of settings
             
         Returns:
             bool: Whether the email was sent successfully
@@ -52,15 +83,19 @@ class EmailNotifier:
             return True
             
         try:
-            # Handle dry run mode
-            if self.dry_run:
+            # Check if we should use dry run mode
+            use_dry_run = self.dry_run or force_dry_run
+            
+            if use_dry_run:
+                logger.info(f"Sending notifications for {len(applications)} jobs in dry run mode")
                 return self._handle_dry_run(applications)
-            
-            # Create email message
-            msg = self._create_email_message(applications)
-            
-            # Connect to SMTP server and send email
-            return self._send_email(msg)
+            else:
+                logger.info(f"Sending real email notifications for {len(applications)} jobs")
+                # Create email message
+                msg = self._create_email_message(applications)
+                
+                # Connect to SMTP server and send email
+                return self._send_email(msg)
             
         except Exception as e:
             logger.error(f"Error sending email notifications: {str(e)}")
@@ -88,7 +123,7 @@ class EmailNotifier:
             
             logger.info("---")
         
-        return True
+        return True  # Indicate success in dry run mode
     
     def _create_email_message(self, applications):
         """Create a multipart email message with HTML content"""
@@ -136,11 +171,6 @@ class EmailNotifier:
     
     def _build_email_body(self, applications):
         """Build the HTML email body with job details and analysis."""
-        # Create list items for key requirements
-        req_list_items = ""
-        for req in applications[0].get('analysis', {}).get('key_requirements', []):
-            req_list_items += f"<li>{req}</li>"
-        
         # Create the HTML email body
         html_body = f"""
         <html>
@@ -170,22 +200,22 @@ class EmailNotifier:
                 
                 {''.join(f'''
                 <div class="job-section">
-                    <h2 class="job-title">{job['job_title']}</h2>
-                    <p class="company-name">{job['employer_name']}</p>
-                    <p class="location">{job['job_city']}, {job['job_country']}</p>
-                    <p class="salary">Salary: {self._format_salary(job.get('job_min_salary'), job.get('job_max_salary'))}</p>
+                    <h2 class="job-title">{self._extract_job_data(job).get('job_title', 'Job Posting')}</h2>
+                    <p class="company-name">{self._extract_job_data(job).get('employer_name', 'Company')}</p>
+                    <p class="location">{self._extract_job_data(job).get('job_city', 'Location')}, {self._extract_job_data(job).get('job_country', '')}</p>
+                    <p class="salary">Salary: {self._format_salary(self._extract_job_data(job).get('job_min_salary'), self._extract_job_data(job).get('job_max_salary'), self._extract_job_data(job).get('job_salary_period', ''))}</p>
                     <div class="description">
                         <h3>Job Description:</h3>
-                        <p>{job['job_description']}</p>
+                        <p>{self._extract_job_data(job).get('job_description', 'No description available')}</p>
                     </div>
                     <div class="requirements">
                         <h3>Required Skills:</h3>
                         <ul>
-                            {req_list_items}
+                            {self._format_skills_list(self._extract_job_data(job).get('job_required_skills', []))}
                         </ul>
                     </div>
                     <p class="match-percentage">Skill Match: {job.get('analysis', {}).get('skill_match_percentage', 0)}%</p>
-                    <a href="{job['job_apply_link']}" class="apply-link" target="_blank">Apply Now</a>
+                    <a href="{self._extract_job_data(job).get('job_apply_link', '#')}" class="apply-link" target="_blank">Apply Now</a>
                 </div>
                 ''' for job in applications)}
                 

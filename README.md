@@ -18,7 +18,8 @@ A Python application that automatically searches for job listings based on your 
 1. Clone this repository
 2. Create a `.env` file with your configuration (see `.env.example`)
 3. Install dependencies: `pip install -r requirements.txt`
-4. Run the job alert: `python job_alert.py`
+4. Configure email notifications: `python configure_email.py --show-settings` (see `EMAIL_SETUP.md` for details)
+5. Run the job alert: `python job_alert.py`
 
 ## Environment Variables
 
@@ -68,6 +69,40 @@ Run continuously:
 ```
 python job_alert.py
 ```
+
+Run in dry run mode (no emails sent):
+```
+python job_alert.py --run-once --dry-run
+```
+
+## Configuration Tools
+
+The system includes several tools to make configuration easier:
+
+### Email Configuration
+
+```bash
+# Show current email settings
+python configure_email.py --show-settings
+
+# Set sender email address
+python configure_email.py --set-sender "your.email@gmail.com"
+
+# Set recipient email address
+python configure_email.py --set-recipient "recipient@example.com"
+
+# Set email password (for Gmail, use App Password)
+python configure_email.py --set-password "your-password"
+
+# Send a test email to verify settings
+python configure_email.py --send-test
+
+# Enable/disable email sending
+python configure_email.py --enable-emails
+python configure_email.py --disable-emails
+```
+
+For detailed instructions on setting up email notifications, see [EMAIL_SETUP.md](EMAIL_SETUP.md).
 
 ## Advanced Features
 

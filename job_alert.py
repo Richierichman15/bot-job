@@ -177,10 +177,14 @@ def main():
     """Main entry point for the job alert system"""
     parser = argparse.ArgumentParser(description="Job Alert System")
     parser.add_argument("--run-once", action="store_true", help="Run once and exit")
+    parser.add_argument("--dry-run", action="store_true", help="Run in dry run mode (don't send actual emails)")
     args = parser.parse_args()
     
     try:
         system = JobAlertSystem()
+        
+        # Pass the dry run flag to the email notifier
+        system.email_notifier.dry_run = system.email_notifier.dry_run or args.dry_run
         
         if args.run_once:
             logger.info("Running job alert system once")
