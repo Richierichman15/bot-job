@@ -1,135 +1,98 @@
-# Job Search Alert Bot
+# Job Alert Bot
 
-A Python application that automatically searches for job listings based on your criteria and sends email notifications for new opportunities.
+A Python-based job alert system that searches for job opportunities, sends notifications via email, and can now automatically prepare and submit job applications.
 
-## Features
+## New Feature: Bright Data Integration
 
-- Search for jobs across multiple job titles and locations
-- Support for multiple job search APIs (JSearch, Active Jobs DB, and LinkedIn)
-- Filter jobs by minimum salary (supports both hourly and annual rates)
-- Monitor LinkedIn company pages for job announcements
-- Configurable search parameters through .env file
-- Email notifications for new job listings
-- API-based job searching with comprehensive results
-- Optional AI processing for job description analysis
+The system now uses Bright Data's Web Unlocker API to scrape job listings from popular job sites and automate application submission. This provides greater reliability and bypass rate limiting issues with traditional APIs.
+
+### Key Features
+
+1. **Web Scraping**: Scrape job listings from Indeed, LinkedIn, and other job sites.
+2. **Application Automation**: Automatically prepare and submit job applications with your resume and custom cover letters.
+3. **History Tracking**: Track application history and maintain daily application limits.
 
 ## Setup
 
 1. Clone this repository
-2. Create a `.env` file with your configuration (see `.env.example`)
-3. Install dependencies: `pip install -r requirements.txt`
-4. Configure email notifications: `python configure_email.py --show-settings` (see `EMAIL_SETUP.md` for details)
-5. Run the job alert: `python job_alert.py`
+2. Create a virtual environment: `python -m venv .venv`
+3. Activate the virtual environment: `source .venv/bin/activate` (Linux/Mac) or `.venv\Scripts\activate` (Windows)
+4. Install dependencies: `pip install -r requirements.txt`
+5. Configure the environment variables in `.env` file
+6. Upload your resume to the `resume` directory
+7. Run `./update_jobbot.sh` to update with the latest features
 
-## Environment Variables
+## Configuration
 
-Configuration is done through a `.env` file with the following variables:
+The system is configured through environment variables in the `.env` file:
 
 ```
-# JSearch API credentials
-JSEARCH_API_KEY=your_api_key
-JSEARCH_API_HOST=jsearch.p.rapidapi.com
+# API Settings
+USE_MOCK_DATA=true  # Use mock data for testing
+USE_BRIGHTDATA=true  # Use Bright Data for web scraping
 
-# Active Jobs DB API credentials
-ACTIVEJOBS_API_KEY=your_api_key
-ACTIVEJOBS_API_HOST=active-jobs-db.p.rapidapi.com
+# Bright Data API Settings
+BRIGHTDATA_API_KEY=your_brightdata_api_key
+BRIGHTDATA_ZONE=job_socket
 
-# LinkedIn API credentials
-LINKEDIN_API_KEY=your_api_key
-LINKEDIN_API_HOST=linkedin-data-api.p.rapidapi.com
-LINKEDIN_COMPANIES=microsoft,google,amazon
-
-# Use multiple APIs
-USE_MULTIPLE_APIS=true
-
-# Email configuration
-EMAIL_SENDER=your_email@example.com
-EMAIL_PASSWORD=your_email_password
-EMAIL_RECIPIENT=recipient@example.com
-SMTP_SERVER=smtp.example.com
-SMTP_PORT=587
-
-# Job search parameters
-JOB_TITLES=software developer,fullstack developer
-JOB_LOCATIONS=usa,remote
-JOB_REMOTE=true
-MIN_SALARY=20
-JOB_EMPLOYMENT_TYPES=FULLTIME,CONTRACT,PARTTIME
-CHECK_INTERVAL_MINUTES=288
+# Resume Settings
+RESUME_PATH=resume/your_resume.pdf
+AUTO_SUBMIT_APPLICATIONS=true
+COVER_LETTER_TEMPLATE=resume/cover_letter_template.txt
+MAX_DAILY_APPLICATIONS=5
 ```
 
 ## Usage
 
-Run once:
-```
-python job_alert.py --run-once
-```
-
-Run continuously:
-```
-python job_alert.py
-```
-
-Run in dry run mode (no emails sent):
-```
-python job_alert.py --run-once --dry-run
-```
-
-## Configuration Tools
-
-The system includes several tools to make configuration easier:
-
-### Email Configuration
+### Running the Job Alert System
 
 ```bash
-# Show current email settings
-python configure_email.py --show-settings
+# Run once and exit
+python job_alert.py --run-once
 
-# Set sender email address
-python configure_email.py --set-sender "your.email@gmail.com"
+# Run continuously (checks at intervals defined in .env)
+python job_alert.py
 
-# Set recipient email address
-python configure_email.py --set-recipient "recipient@example.com"
+# Process pending applications only
+python job_alert.py --apply-only
 
-# Set email password (for Gmail, use App Password)
-python configure_email.py --set-password "your-password"
-
-# Send a test email to verify settings
-python configure_email.py --send-test
-
-# Enable/disable email sending
-python configure_email.py --enable-emails
-python configure_email.py --disable-emails
+# Process a limited number of applications
+python job_alert.py --apply-only --limit 2
 ```
 
-For detailed instructions on setting up email notifications, see [EMAIL_SETUP.md](EMAIL_SETUP.md).
+### Automatic Job Applications
 
-## Advanced Features
+When `AUTO_SUBMIT_APPLICATIONS=true`, the system will:
 
-### Using OpenAI for Job Analysis
+1. Find job listings that match your criteria
+2. Generate customized cover letters for each job
+3. Prepare application packages with your resume
+4. Process a limited number of applications per day
+5. Track application history and success rates
 
-If you provide an OpenAI API key, the system will:
-- Extract key skills required for each job
-- Identify years of experience needed
-- Summarize job responsibilities
-- Provide a suitability score
+Application packages are stored in the `applications` directory, organized by company and date.
 
-### Using Ollama for Local AI Processing
+## Application Report
 
-If you have Ollama installed, the system will use it as a fallback when no OpenAI key is provided.
+View your application history in `applications/logs/application_history.json`, which includes:
 
-## Troubleshooting
+- Total applications submitted
+- Success and failure statistics
+- Daily application counts
+- Complete list of all applications with details
 
-- **Email Not Sending**: Make sure you're using an app password for Gmail, not your regular password
-- **No Jobs Found**: Try broadening your search terms or location
-- **API Errors**: Check your JSearch API key and usage limits
-- **Searching for Specific Locations**: Some specific cities may not be recognized by the API. Try using more general locations like state or country names.
+## Dependencies
+
+- Python 3.6 or higher
+- requests
+- BeautifulSoup4
+- python-dotenv
+- lxml
 
 ## License
 
-This project is open source and available under the MIT License.
+MIT
 
 ## Acknowledgements
 
-- Uses the JSearch API from RapidAPI for job data
-- Optional integration with OpenAI API and Ollama 
+This project uses the Bright Data Web Unlocker API for web scraping. 
