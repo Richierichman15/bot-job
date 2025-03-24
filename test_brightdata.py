@@ -27,6 +27,28 @@ def test_indeed_search():
         query = "python developer"
         location = "remote"
         
+        # First check if API_KEY is set properly
+        if not scraper.api_key:
+            logger.error("BRIGHTDATA_API_KEY not found or empty. Please set it in your .env file.")
+            return
+            
+        logger.info(f"Using API key: {scraper.api_key[:5]}...{scraper.api_key[-5:]} with zone: {scraper.zone}")
+        
+        # Test with a simpler request first to verify API connectivity
+        logger.info("Testing API connectivity with a simple request...")
+        simple_response = scraper._make_request(
+            "https://geo.brdtest.com/welcome.txt?product=unlocker&method=api",
+            format_type="raw"
+        )
+        
+        if not simple_response:
+            logger.error("Failed to get response from Bright Data API for test endpoint.")
+            logger.error("Please check your API key and connection.")
+            return
+            
+        logger.info(f"Test endpoint response: {simple_response[:100]}...")
+        
+        # Now proceed with the real search
         logger.info(f"Searching Indeed for: {query} in {location}")
         response = scraper._make_request(
             f"https://www.indeed.com/jobs?q={query.replace(' ', '+')}&l={location}",
@@ -142,14 +164,36 @@ def main():
     """Main function to run tests"""
     logger.info("Starting Bright Data scraper tests")
     
-    # Test Indeed job search
-    test_indeed_search()
+    # Add command line parameter support
+    import sys
     
-    # Wait a bit before next test
-    time.sleep(5)
-    
-    # Test LinkedIn job search
-    test_linkedin_search()
+    # Check for command-line arguments
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "indeed":
+            # Only test Indeed
+            test_indeed_search()
+        elif sys.argv[1] == "linkedin":
+            # Only test LinkedIn
+            test_linkedin_search()
+        elif sys.argv[1] == "connectivity":
+            # Only test API connectivity
+            scraper = BrightDataScraper()
+            simple_response = scraper._make_request(
+                "https://geo.brdtest.com/welcome.txt?product=unlocker&method=api",
+                format_type="raw"
+            )
+            print(f"API connectivity test response: {simple_response}")
+        else:
+            print(f"Unknown test option: {sys.argv[1]}")
+            print("Available options: indeed, linkedin, connectivity")
+    else:
+        # Default: run full tests
+        test_indeed_search()
+        
+        # Wait a bit before next test
+        time.sleep(5)
+        
+        test_linkedin_search()
     
     logger.info("Completed Bright Data scraper tests")
 

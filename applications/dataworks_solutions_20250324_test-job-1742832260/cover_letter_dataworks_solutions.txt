@@ -1,0 +1,12 @@
+Dear Hiring Manager at DataWorks Solutions,
+
+I am writing to express my interest in the Full Stack Developer position at DataWorks Solutions. 
+With my background in web development and experience with Python, JavaScript and React, 
+I believe I would be a valuable addition to your team.
+
+Thank you for considering my application.
+
+Sincerely,
+Test Candidate
+test@example.com
+555-123-4567

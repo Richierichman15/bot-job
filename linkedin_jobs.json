@@ -1,0 +1,15 @@
+[
+  {
+    "job_id": "test456",
+    "job_title": "Software Engineer",
+    "employer_name": "LinkedIn Test Company",
+    "job_location": "Remote",
+    "job_description": "",
+    "job_min_salary": null,
+    "job_max_salary": null,
+    "job_salary_period": null,
+    "job_apply_link": "https://www.linkedin.com/jobs/view/test456",
+    "date_posted": "",
+    "job_source": "linkedin"
+  }
+]

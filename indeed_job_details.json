@@ -1,0 +1,18 @@
+{
+  "job_id": "test123",
+  "job_title": "Software Developer",
+  "employer_name": "Test Company",
+  "job_location": "Remote",
+  "job_description": "This is a test job description. Skills needed: Python, JavaScript, React.",
+  "job_min_salary": null,
+  "job_max_salary": null,
+  "job_salary_period": null,
+  "job_apply_link": "https://www.indeed.com/viewjob?jk=test123",
+  "date_posted": "Posted 3 days ago",
+  "job_source": "indeed",
+  "job_required_skills": [
+    "Python",
+    "JavaScript",
+    "React"
+  ]
+}

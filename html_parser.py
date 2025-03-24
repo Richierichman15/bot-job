@@ -28,12 +28,19 @@ class JobPageParser:
         Returns:
             list: List of job dictionaries
         """
+        # Return empty list for empty content
+        if not html_content:
+            logger.error("Empty HTML content provided to Indeed parser")
+            return []
+            
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             jobs = []
             
             # Find all job cards in the search results
             job_cards = soup.select('.job_seen_beacon')
+            
+            logger.info(f"Found {len(job_cards)} job cards in the Indeed search results")
             
             for card in job_cards:
                 try:
@@ -109,12 +116,19 @@ class JobPageParser:
         Returns:
             list: List of job dictionaries
         """
+        # Return empty list for empty content
+        if not html_content:
+            logger.error("Empty HTML content provided to LinkedIn parser")
+            return []
+            
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             jobs = []
             
             # Find all job cards in the search results
             job_cards = soup.select('.job-search-card')
+            
+            logger.info(f"Found {len(job_cards)} job cards in the LinkedIn search results")
             
             for card in job_cards:
                 try:

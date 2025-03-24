@@ -30,7 +30,7 @@ class JobApplicationAutomator:
     def __init__(self):
         """Initialize the JobApplicationAutomator with necessary settings"""
         # Get settings from environment variables
-        self.resume_path = os.getenv("RESUME_PATH", "resume/Resume (1).pdf")
+        self.resume_path = os.getenv("RESUME_PATH", "resume/GN.pdf")
         self.applications_dir = os.getenv("APPLICATIONS_DIR", "applications")
         self.cover_letter_template = os.getenv("COVER_LETTER_TEMPLATE", "resume/cover_letter_template.txt")
         self.max_daily_applications = int(os.getenv("MAX_DAILY_APPLICATIONS", "5"))

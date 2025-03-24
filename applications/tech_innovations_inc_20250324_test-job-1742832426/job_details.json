@@ -1,0 +1,18 @@
+{
+  "job_id": "test-job-1742832426",
+  "job_title": "Senior Software Engineer",
+  "employer_name": "Tech Innovations Inc",
+  "job_location": "Remote",
+  "job_description": "This is a test job description for Senior Software Engineer at Tech Innovations Inc. Skills needed: Python, JavaScript, React.",
+  "job_min_salary": 100000,
+  "job_max_salary": 130000,
+  "job_salary_period": "yearly",
+  "job_apply_link": "https://example.com/jobs/test-job-1742832426",
+  "date_posted": "2023-08-01",
+  "job_required_skills": [
+    "Python",
+    "JavaScript",
+    "React"
+  ],
+  "job_employment_type": "FULLTIME"
+}

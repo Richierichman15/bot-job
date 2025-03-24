@@ -42,7 +42,7 @@ class JobAlertSystem:
         self.check_interval = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
         
         # Resume and application settings
-        self.resume_path = os.getenv("RESUME_PATH", "resume/resume.pdf")
+        self.resume_path = os.getenv("RESUME_PATH", "resume/GN.pdf")
         self.auto_submit = os.getenv("AUTO_SUBMIT_APPLICATIONS", "false").lower() == "true"
         self.cover_letter_template = os.getenv("COVER_LETTER_TEMPLATE", "resume/cover_letter_template.txt")
         
@@ -375,11 +375,17 @@ def main():
     # Initialize system
     system = JobAlertSystem()
     
-    if args.apply_only and system.auto_submit and system.application_automator:
-        # Only process pending applications
-        logger.info(f"Processing pending job applications (limit: {args.limit})...")
-        applications_submitted = system.application_automator.run(limit=args.limit)
-        logger.info(f"Submitted {applications_submitted} job applications")
+    if args.apply_only:
+        if system.auto_submit and system.application_automator:
+            # Only process pending applications
+            logger.info(f"Processing pending job applications (limit: {args.limit})...")
+            applications_submitted = system.application_automator.run(limit=args.limit)
+            logger.info(f"Submitted {applications_submitted} job applications")
+        else:
+            if not system.auto_submit:
+                logger.error("Auto-submit is disabled. Enable it by setting AUTO_SUBMIT_APPLICATIONS=true in .env")
+            else:
+                logger.error("Application automator initialization failed.")
     else:
         # Run the full system
         if args.run_once:
