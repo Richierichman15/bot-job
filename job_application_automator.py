@@ -172,10 +172,18 @@ class JobApplicationAutomator:
             logger.error(f"No apply link found for {app_dir}")
             return False
         
-        # Get resume path
-        resume_path = os.path.join(app_path, os.path.basename(self.resume_path))
-        if not os.path.exists(resume_path):
-            logger.error(f"Resume not found at {resume_path}")
+        # Get resume path - try multiple possible filenames
+        resume_path = None
+        possible_resume_names = ["GN.pdf", "Resume (1).pdf", os.path.basename(self.resume_path)]
+        
+        for name in possible_resume_names:
+            test_path = os.path.join(app_path, name)
+            if os.path.exists(test_path):
+                resume_path = test_path
+                break
+                
+        if not resume_path:
+            logger.error(f"Resume not found in {app_path}. Tried: {', '.join(possible_resume_names)}")
             return False
         
         # Get cover letter path

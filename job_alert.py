@@ -156,7 +156,7 @@ Sincerely,
             
             # Copy resume to application directory
             import shutil
-            resume_filename = os.path.basename(self.resume_path)
+            resume_filename = "GN.pdf"  # Force use of this filename
             destination_resume = os.path.join(application_dir, resume_filename)
             shutil.copy(self.resume_path, destination_resume)
             
