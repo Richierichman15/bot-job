@@ -14,6 +14,8 @@ from ai_processor import AIJobProcessor
 from email_sender import send_job_notification
 import re
 from pathlib import Path
+from job_application_automator import JobApplicationAutomator
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -57,6 +59,12 @@ class JobAlertSystem:
         # Create applications directory
         self.applications_dir = "applications"
         os.makedirs(self.applications_dir, exist_ok=True)
+        
+        # Initialize job application automator if auto-submit is enabled
+        self.application_automator = None
+        if self.auto_submit:
+            self.application_automator = JobApplicationAutomator()
+            logger.info("Initialized job application automator")
         
     def _create_default_cover_letter_template(self):
         """Create a default cover letter template if none exists"""
@@ -187,7 +195,7 @@ Sincerely,
             return None
     
     def run_once(self):
-        """Run the job alert system once and exit"""
+        """Run the job alert system once"""
         logger.info("Running job alert system once")
         
         try:
@@ -261,14 +269,12 @@ Sincerely,
                         application_package = self.prepare_job_application(job, application_packages[i].get('analysis'))
                         if application_package:
                             application_packages[i]['application'] = application_package
-                
-                # Send email notifications if there are any new jobs
-                if new_job_packages:
-                    logger.info(f"Sending notifications for {len(new_job_packages)} jobs")
-                    self.email_notifier.send_job_notifications(new_job_packages)
-                    logger.info("Email notifications sent successfully")
-                else:
-                    logger.info("No new job opportunities found")
+                    
+                    # Run job application automator if available
+                    if self.application_automator:
+                        logger.info("Processing pending job applications...")
+                        applications_submitted = self.application_automator.run(limit=3)
+                        logger.info(f"Submitted {applications_submitted} job applications")
             else:
                 # Use the normal search process
                 processed_jobs = job_searcher.search_jobs()
@@ -308,6 +314,12 @@ Sincerely,
                             application = self.prepare_job_application(job, analysis)
                             if application:
                                 new_job_packages[i]['application'] = application
+                        
+                        # Run job application automator if available
+                        if self.application_automator:
+                            logger.info("Processing pending job applications...")
+                            applications_submitted = self.application_automator.run(limit=3)
+                            logger.info(f"Submitted {applications_submitted} job applications")
                     
                     # Send email notifications if there are any new jobs
                     if new_job_packages:
@@ -346,29 +358,36 @@ Sincerely,
                 time.sleep(60)
 
 def main():
-    """Main entry point for the job alert system"""
+    """Main function"""
     parser = argparse.ArgumentParser(description="Job Alert System")
-    parser.add_argument("--run-once", action="store_true", help="Run once and exit")
-    parser.add_argument("--dry-run", action="store_true", help="Run in dry run mode (don't send actual emails)")
+    parser.add_argument("--run-once", action="store_true", help="Run the system once and exit")
+    parser.add_argument("--apply-only", action="store_true", help="Only process pending applications, don't search for new jobs")
+    parser.add_argument("--limit", type=int, default=3, help="Maximum number of applications to process")
     args = parser.parse_args()
     
-    try:
-        system = JobAlertSystem()
-        
-        # Pass the dry run flag to the email notifier
-        system.email_notifier.dry_run = system.email_notifier.dry_run or args.dry_run
-        
+    # Initialize signal handler
+    def signal_handler(sig, frame):
+        logger.info("Received interrupt signal, shutting down...")
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Initialize system
+    system = JobAlertSystem()
+    
+    if args.apply_only and system.auto_submit and system.application_automator:
+        # Only process pending applications
+        logger.info(f"Processing pending job applications (limit: {args.limit})...")
+        applications_submitted = system.application_automator.run(limit=args.limit)
+        logger.info(f"Submitted {applications_submitted} job applications")
+    else:
+        # Run the full system
         if args.run_once:
             logger.info("Running job alert system once")
-            success = system.run_once()
-            exit(0 if success else 1)
+            system.run_once()
         else:
             logger.info("Running job alert system continuously")
             system.run_continuous()
-            
-    except Exception as e:
-        logger.error(f"Fatal error: {str(e)}")
-        exit(1)
-
+    
 if __name__ == "__main__":
     main() 

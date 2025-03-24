@@ -9,6 +9,8 @@ from datetime import datetime
 from active_jobs_api import ActiveJobsAPI  # Import the Active Jobs DB API client
 from linkedin_api import LinkedInAPI  # Import the LinkedIn API client
 from ai_processor import AIJobProcessor
+from bright_data_scraper import BrightDataScraper
+from html_parser import JobPageParser
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +26,9 @@ class JobSearcher:
     def __init__(self):
         # Check if we should use mock data for testing
         self.use_mock_data = os.getenv("USE_MOCK_DATA", "false").lower() == "true"
+        
+        # Check if we should use Bright Data scraping
+        self.use_brightdata = os.getenv("USE_BRIGHTDATA", "false").lower() == "true"
         
         self.api_key = os.getenv("JSEARCH_API_KEY")
         self.api_host = os.getenv("JSEARCH_API_HOST")
@@ -71,22 +76,37 @@ class JobSearcher:
         
         # API request delay to avoid rate limiting
         self.request_delay = float(os.getenv("API_REQUEST_DELAY", "1.5"))
+        
+        # Initialize Bright Data scraper if needed
+        self.bright_data = None
+        if self.use_brightdata and not self.use_mock_data:
+            try:
+                self.bright_data = BrightDataScraper()
+                logger.info("Initialized Bright Data scraper for job search")
+            except ValueError as e:
+                logger.error(f"Failed to initialize Bright Data scraper: {str(e)}")
+                logger.warning("Falling back to mock data")
+                self.use_mock_data = True
     
     def search_jobs(self):
         """
-        Search for jobs based on configured criteria
+        Search for jobs using the specified APIs or mock data
         
         Returns:
-            list: List of processed job listings
+            list: Processed job listings
         """
         all_jobs = []
-        processed_jobs = []
         
-        # If using mock data, use sample data instead of API calls
+        # If using mock data, return mock jobs
         if self.use_mock_data:
-            logger.info("Using mock data for job search")
-            all_jobs = self._get_mock_jobs()
+            logger.info("Generating mock job data for testing")
+            return self._get_mock_jobs()
+        
+        # Use Bright Data scraper if enabled
+        if self.use_brightdata and self.bright_data:
+            all_jobs = self._search_with_brightdata()
         else:
+            # Use existing API methods if Bright Data is not enabled
             # Search for each job title in each location
             for title in self.job_titles:
                 for location in self.job_locations:
@@ -104,24 +124,8 @@ class JobSearcher:
                     except Exception as e:
                         logger.error(f"Error searching for {title} in {location}: {str(e)}")
         
-        # Remove duplicates based on job ID
-        unique_jobs = self._remove_duplicates(all_jobs)
-        logger.info(f"Found {len(unique_jobs)} unique jobs after filtering")
-        
-        # Process each job with AI
-        for job in unique_jobs:
-            try:
-                # Analyze and prepare application if salary meets minimum
-                if self._meets_salary_requirements(job):
-                    application = self.ai_processor.prepare_application(job)
-                    if application['status'] == 'ready_to_apply':
-                        processed_jobs.append(application)
-                        logger.info(f"Prepared application for {job.get('job_title')} at {job.get('employer_name')}")
-            except Exception as e:
-                logger.error(f"Error processing job {job.get('job_id')}: {str(e)}")
-        
-        logger.info(f"Successfully processed {len(processed_jobs)} jobs")
-        return processed_jobs
+        # Process the jobs
+        return self._process_jobs(all_jobs)
     
     def _search_single_query(self, query, location):
         """
@@ -741,4 +745,120 @@ class JobSearcher:
             }
         ]
         
-        return mock_jobs 
+        return mock_jobs
+
+    def _search_with_brightdata(self):
+        """
+        Search for jobs using the Bright Data scraper
+        
+        Returns:
+            list: Job listings
+        """
+        all_jobs = []
+        
+        # Search across all job titles and locations
+        for title in self.job_titles:
+            for location in self.job_locations:
+                try:
+                    # Search Indeed
+                    logger.info(f"Searching for {title} in {location}")
+                    
+                    # Indeed search
+                    indeed_jobs = self.bright_data.search_indeed_jobs(title, location)
+                    if indeed_jobs:
+                        all_jobs.extend(indeed_jobs)
+                        logger.info(f"Found {len(indeed_jobs)} jobs on Indeed for {title} in {location}")
+                    
+                    # LinkedIn search
+                    linkedin_jobs = self.bright_data.search_linkedin_jobs(title, location)
+                    if linkedin_jobs:
+                        all_jobs.extend(linkedin_jobs)
+                        logger.info(f"Found {len(linkedin_jobs)} jobs on LinkedIn for {title} in {location}")
+                    
+                    # Apply delay between searches
+                    time.sleep(self.request_delay)
+                    
+                except Exception as e:
+                    logger.error(f"Error searching for jobs with Bright Data: {str(e)}")
+                    time.sleep(self.request_delay * 2)  # Longer delay after error
+        
+        # Get detailed job information
+        enriched_jobs = []
+        for job in all_jobs:
+            try:
+                if job.get('job_apply_link'):
+                    # Get detailed job info
+                    detailed_job = self.bright_data.get_job_details(job.get('job_apply_link'))
+                    
+                    # Merge the detailed info with the basic job info
+                    if detailed_job:
+                        job.update(detailed_job)
+                    
+                # Add the enriched job
+                enriched_jobs.append(job)
+                
+                # Apply delay between job detail requests
+                time.sleep(self.request_delay)
+                
+            except Exception as e:
+                logger.error(f"Error getting job details: {str(e)}")
+                # Still add the basic job info
+                enriched_jobs.append(job)
+                time.sleep(self.request_delay)
+        
+        return enriched_jobs
+
+    def _process_jobs(self, jobs):
+        """
+        Process the jobs by filtering and scoring them
+        
+        Args:
+            jobs (list): List of job dictionaries
+            
+        Returns:
+            list: Processed job listings
+        """
+        processed_jobs = []
+        
+        # Calculate timestamp for "fetched_at"
+        timestamp = datetime.now().isoformat()
+        
+        # Apply filters and scoring to each job
+        for job in jobs:
+            try:
+                # Ensure required fields have values
+                job_title = job.get('job_title', '')
+                job_description = job.get('job_description', '')
+                
+                # Skip jobs with no title or description
+                if not job_title or not job_description:
+                    continue
+                
+                # Filter based on job title keywords
+                if not self._matches_job_filters(job_title, job_description):
+                    continue
+                
+                # Check minimum salary requirements if set
+                min_salary = self.min_salary if hasattr(self, 'min_salary') else 0
+                if min_salary > 0 and job.get('job_min_salary'):
+                    if job.get('job_salary_period') == 'hourly' and job.get('job_min_salary') < min_salary / 2080:
+                        continue
+                    elif job.get('job_salary_period') == 'yearly' and job.get('job_min_salary') < min_salary:
+                        continue
+                
+                # Check employment type requirements
+                if self.employment_types and job.get('job_employment_type') and job.get('job_employment_type') not in self.employment_types:
+                    continue
+                
+                # Add fetched timestamp
+                job['fetched_at'] = timestamp
+                
+                # Add to processed jobs
+                processed_jobs.append(job)
+                
+            except Exception as e:
+                logger.error(f"Error processing job: {str(e)}")
+                continue
+        
+        logger.info(f"Processed {len(processed_jobs)} jobs after filtering")
+        return processed_jobs 
