@@ -4,9 +4,9 @@
   "company": "Tech Innovations Inc",
   "apply_link": "https://example.com/jobs/test-job-1742832688",
   "date_prepared": "2025-03-24T11:11:28.753209",
-  "submitted": false,
-  "submission_date": null,
-  "submission_attempts": 1,
-  "last_attempt": "2025-03-24T11:12:38.990989",
-  "submission_status": "failed"
+  "submitted": true,
+  "submission_date": "2025-03-24T11:27:16.028599",
+  "submission_attempts": 2,
+  "last_attempt": "2025-03-24T11:22:47.945195",
+  "submission_status": "success"
 }

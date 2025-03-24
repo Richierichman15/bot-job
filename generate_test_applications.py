@@ -27,7 +27,17 @@ def create_test_application(company_name, job_title, job_id=None):
     """
     # Setup paths
     applications_dir = "applications"
-    resume_path = os.getenv("RESUME_PATH", "resume/GN.pdf")
+    default_resume_path = "/Users/gitonga-nyaga/github/job/resume/GN.pdf"
+    resume_path = os.getenv("RESUME_PATH", default_resume_path)
+    
+    # If the resume path doesn't exist, try relative path
+    if not os.path.exists(resume_path):
+        relative_path = os.path.join(os.getcwd(), "resume/GN.pdf")
+        if os.path.exists(relative_path):
+            resume_path = relative_path
+            logger.info(f"Using resume from relative path: {resume_path}")
+        else:
+            logger.warning(f"Resume not found at {resume_path} or {relative_path}")
     
     # Create a unique job ID if not provided
     if not job_id:

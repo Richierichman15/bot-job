@@ -42,14 +42,21 @@ class JobAlertSystem:
         self.check_interval = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
         
         # Resume and application settings
-        self.resume_path = os.getenv("RESUME_PATH", "resume/GN.pdf")
+        default_resume_path = "/Users/gitonga-nyaga/github/job/resume/GN.pdf"
+        self.resume_path = os.getenv("RESUME_PATH", default_resume_path)
         self.auto_submit = os.getenv("AUTO_SUBMIT_APPLICATIONS", "false").lower() == "true"
         self.cover_letter_template = os.getenv("COVER_LETTER_TEMPLATE", "resume/cover_letter_template.txt")
         
         # Verify resume exists
         if self.auto_submit and not os.path.exists(self.resume_path):
-            logger.warning(f"Resume not found at {self.resume_path}. Auto-submit will be disabled.")
-            self.auto_submit = False
+            # Try relative path if absolute path doesn't exist
+            relative_path = os.path.join(os.getcwd(), "resume/GN.pdf")
+            if os.path.exists(relative_path):
+                self.resume_path = relative_path
+                logger.info(f"Using resume from relative path: {self.resume_path}")
+            else:
+                logger.warning(f"Resume not found at {self.resume_path} or {relative_path}. Auto-submit will be disabled.")
+                self.auto_submit = False
         
         # Verify cover letter template exists
         if self.auto_submit and not os.path.exists(self.cover_letter_template):

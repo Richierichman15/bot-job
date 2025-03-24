@@ -5,5 +5,8 @@
   "apply_link": "https://example.com/jobs/test-job-1742832508",
   "date_prepared": "2025-03-24T11:08:28.358940",
   "submitted": false,
-  "submission_date": null
+  "submission_date": null,
+  "submission_attempts": 1,
+  "last_attempt": "2025-03-24T11:27:27.323065",
+  "submission_status": "failed"
 }

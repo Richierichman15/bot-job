@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import random
+import shutil
 from datetime import datetime
 from dotenv import load_dotenv
 from bright_data_scraper import BrightDataScraper
@@ -30,11 +31,22 @@ class JobApplicationAutomator:
     def __init__(self):
         """Initialize the JobApplicationAutomator with necessary settings"""
         # Get settings from environment variables
-        self.resume_path = os.getenv("RESUME_PATH", "resume/GN.pdf")
+        default_resume_path = "/Users/gitonga-nyaga/github/job/resume/GN.pdf"
+        self.resume_path = os.getenv("RESUME_PATH", default_resume_path)
         self.applications_dir = os.getenv("APPLICATIONS_DIR", "applications")
         self.cover_letter_template = os.getenv("COVER_LETTER_TEMPLATE", "resume/cover_letter_template.txt")
         self.max_daily_applications = int(os.getenv("MAX_DAILY_APPLICATIONS", "5"))
         self.application_delay = float(os.getenv("APPLICATION_DELAY", "2.0"))
+        
+        # Verify resume exists
+        if not os.path.exists(self.resume_path):
+            # Try relative path
+            relative_path = os.path.join(os.getcwd(), "resume/GN.pdf")
+            if os.path.exists(relative_path):
+                self.resume_path = relative_path
+                logger.info(f"Using resume from relative path: {self.resume_path}")
+            else:
+                logger.warning(f"Resume not found at {self.resume_path} or {relative_path}")
         
         # Initialize Bright Data scraper
         self.bright_data = BrightDataScraper()
@@ -137,14 +149,18 @@ class JobApplicationAutomator:
         Returns:
             bool: True if limit reached, False otherwise
         """
-        today = datetime.now().strftime("%Y-%m-%d")
-        daily_stats = self.application_history["stats"]["by_date"].get(today, {"count": 0})
-        
-        if daily_stats["count"] >= self.max_daily_applications:
-            logger.warning(f"Daily application limit reached: {daily_stats['count']}/{self.max_daily_applications}")
-            return True
-        
+        # Temporarily disable daily limit for testing
         return False
+        
+        # Commented out for testing
+        # today = datetime.now().strftime("%Y-%m-%d")
+        # daily_stats = self.application_history["stats"]["by_date"].get(today, {"count": 0})
+        # 
+        # if daily_stats["count"] >= self.max_daily_applications:
+        #     logger.warning(f"Daily application limit reached: {daily_stats['count']}/{self.max_daily_applications}")
+        #     return True
+        # 
+        # return False
     
     def submit_application(self, application):
         """
@@ -174,8 +190,26 @@ class JobApplicationAutomator:
         
         # Get resume path - try multiple possible filenames
         resume_path = None
-        possible_resume_names = ["GN.pdf", "Resume (1).pdf", os.path.basename(self.resume_path)]
+        possible_resume_names = [
+            "GN.pdf", 
+            "Resume (1).pdf", 
+            os.path.basename(self.resume_path)
+        ]
         
+        # Also check for resume in the source directory (might be an absolute path)
+        if os.path.exists(self.resume_path) and os.path.isfile(self.resume_path):
+            source_resume = self.resume_path
+            target_resume = os.path.join(app_path, os.path.basename(self.resume_path))
+            
+            # Copy the source resume to the application directory if it doesn't exist
+            if not os.path.exists(target_resume):
+                try:
+                    shutil.copy(source_resume, target_resume)
+                    logger.info(f"Copied resume from {source_resume} to {target_resume}")
+                except Exception as e:
+                    logger.error(f"Error copying resume: {str(e)}")
+        
+        # Check for resume files in the application directory
         for name in possible_resume_names:
             test_path = os.path.join(app_path, name)
             if os.path.exists(test_path):

@@ -20,17 +20,45 @@
       "apply_link": "https://example.com/jobs/test-job-1742832260",
       "date": "2025-03-24T11:12:48.624001",
       "success": true
+    },
+    {
+      "job_title": "Senior Software Engineer",
+      "company": "Tech Innovations Inc",
+      "apply_link": "https://example.com/jobs/test-job-1742832688",
+      "date": "2025-03-24T11:22:47.946898",
+      "success": false
+    },
+    {
+      "job_title": "Senior Software Engineer",
+      "company": "Tech Innovations Inc",
+      "apply_link": "https://example.com/jobs/test-job-1742832426",
+      "date": "2025-03-24T11:22:57.681141",
+      "success": true
+    },
+    {
+      "job_title": "Senior Software Engineer",
+      "company": "Tech Innovations Inc",
+      "apply_link": "https://example.com/jobs/test-job-1742832688",
+      "date": "2025-03-24T11:27:16.029464",
+      "success": true
+    },
+    {
+      "job_title": "Senior Software Engineer",
+      "company": "Tech Innovations Inc",
+      "apply_link": "https://example.com/jobs/test-job-1742832508",
+      "date": "2025-03-24T11:27:27.324498",
+      "success": false
     }
   ],
   "stats": {
-    "total_submitted": 3,
-    "successful": 2,
-    "failed": 1,
+    "total_submitted": 7,
+    "successful": 4,
+    "failed": 3,
     "by_date": {
       "2025-03-24": {
-        "count": 3,
-        "successful": 2,
-        "failed": 1
+        "count": 7,
+        "successful": 4,
+        "failed": 3
       }
     }
   }
