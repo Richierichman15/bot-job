@@ -187,6 +187,92 @@ class JobPageParser:
             return []
     
     @staticmethod
+    def parse_glassdoor_listings(html_content):
+        """
+        Parse job listings from Glassdoor search results
+        
+        Args:
+            html_content (str): HTML content of the Glassdoor search results page
+            
+        Returns:
+            list: List of job dictionaries
+        """
+        # Return empty list for empty content
+        if not html_content:
+            logger.error("Empty HTML content provided to Glassdoor parser")
+            return []
+            
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            jobs = []
+            
+            # Find all job cards in the search results
+            job_cards = soup.select('.react-job-listing')
+            
+            logger.info(f"Found {len(job_cards)} job cards in the Glassdoor search results")
+            
+            for card in job_cards:
+                try:
+                    # Extract the job ID
+                    job_id = card.get('data-id', '')
+                    if not job_id:
+                        job_id = card.get('id', '')
+                    
+                    # Extract job title
+                    title_elem = card.select_one('.job-title')
+                    job_title = title_elem.text.strip() if title_elem else "Unknown Title"
+                    
+                    # Extract company name
+                    company_elem = card.select_one('.employer-name')
+                    employer_name = company_elem.text.strip() if company_elem else "Unknown Company"
+                    
+                    # Extract location
+                    location_elem = card.select_one('.location')
+                    job_location = location_elem.text.strip() if location_elem else "Unknown Location"
+                    
+                    # Extract job link
+                    link_elem = card.select_one('a.jobLink')
+                    job_link = link_elem.get('href') if link_elem else ""
+                    if job_link and not job_link.startswith('http'):
+                        job_link = f"https://www.glassdoor.com{job_link}"
+                    
+                    # Extract date posted
+                    date_elem = card.select_one('.listing-age')
+                    date_posted = date_elem.text.strip() if date_elem else ""
+                    
+                    # Extract salary if available
+                    salary_elem = card.select_one('.salary-estimate')
+                    salary = salary_elem.text.strip() if salary_elem else ""
+                    salary_info = JobPageParser._parse_salary(salary) if salary else {}
+                    
+                    # Create job object
+                    job = {
+                        'job_id': job_id,
+                        'job_title': job_title,
+                        'employer_name': employer_name,
+                        'job_location': job_location,
+                        'job_description': "",  # Need to visit job page for description
+                        'job_min_salary': salary_info.get('job_min_salary'),
+                        'job_max_salary': salary_info.get('job_max_salary'),
+                        'job_salary_period': salary_info.get('job_salary_period'),
+                        'job_apply_link': job_link,
+                        'date_posted': date_posted,
+                        'job_source': 'glassdoor'
+                    }
+                    
+                    jobs.append(job)
+                except Exception as e:
+                    logger.error(f"Error parsing Glassdoor job card: {str(e)}")
+                    continue
+            
+            logger.info(f"Parsed {len(jobs)} jobs from Glassdoor")
+            return jobs
+            
+        except Exception as e:
+            logger.error(f"Error parsing Glassdoor listings: {str(e)}")
+            return []
+    
+    @staticmethod
     def parse_indeed_job_details(html_content, base_job=None):
         """
         Parse detailed job information from Indeed job page
@@ -339,6 +425,64 @@ class JobPageParser:
             
         except Exception as e:
             logger.error(f"Error parsing LinkedIn job details: {str(e)}")
+            return base_job or {}
+    
+    @staticmethod
+    def parse_glassdoor_job_details(html_content, base_job=None):
+        """
+        Parse detailed job information from Glassdoor job page
+        
+        Args:
+            html_content (str): HTML content of the job details page
+            base_job (dict): Basic job information to augment
+            
+        Returns:
+            dict: Complete job details
+        """
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Start with base job or create a new one
+            job = base_job or {}
+            
+            # Get job title if not already set
+            if not job.get('job_title'):
+                title_elem = soup.select_one('.jobTitle')
+                if title_elem:
+                    job['job_title'] = title_elem.text.strip()
+            
+            # Get company name if not already set
+            if not job.get('employer_name'):
+                company_elem = soup.select_one('.employerName')
+                if company_elem:
+                    job['employer_name'] = company_elem.text.strip()
+            
+            # Get location if not already set
+            if not job.get('job_location'):
+                location_elem = soup.select_one('.location')
+                if location_elem:
+                    job['job_location'] = location_elem.text.strip()
+            
+            # Get full job description
+            description_elem = soup.select_one('.jobDescriptionContent')
+            if description_elem:
+                job['job_description'] = description_elem.text.strip()
+                
+                # Extract skills from description
+                skills = JobPageParser._extract_skills(job['job_description'])
+                job['job_required_skills'] = skills
+            
+            # Find the application link
+            apply_button = soup.select_one('a.apply-link')
+            if apply_button and not job.get('job_apply_link'):
+                job['job_apply_link'] = apply_button.get('href', '')
+                if job['job_apply_link'] and not job['job_apply_link'].startswith('http'):
+                    job['job_apply_link'] = f"https://www.glassdoor.com{job['job_apply_link']}"
+            
+            return job
+            
+        except Exception as e:
+            logger.error(f"Error parsing Glassdoor job details: {str(e)}")
             return base_job or {}
     
     @staticmethod

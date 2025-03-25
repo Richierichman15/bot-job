@@ -48,17 +48,43 @@
       "apply_link": "https://example.com/jobs/test-job-1742832508",
       "date": "2025-03-24T11:27:27.324498",
       "success": false
+    },
+    {
+      "job_title": "Web Developer",
+      "company": "Generic IT Solutions",
+      "apply_link": "https://example.com/apply/low2",
+      "date": "2025-03-25T13:26:44.579389",
+      "success": true
+    },
+    {
+      "job_title": "Junior Web Developer",
+      "company": "Digital Marketing Group",
+      "apply_link": "https://example.com/apply/standard2",
+      "date": "2025-03-25T13:26:53.163006",
+      "success": true
+    },
+    {
+      "job_title": "Frontend Developer (Part-Time)",
+      "company": "Creative Studios",
+      "apply_link": "https://example.com/apply/parttime1",
+      "date": "2025-03-25T13:27:02.539124",
+      "success": true
     }
   ],
   "stats": {
-    "total_submitted": 7,
-    "successful": 4,
+    "total_submitted": 10,
+    "successful": 7,
     "failed": 3,
     "by_date": {
       "2025-03-24": {
         "count": 7,
         "successful": 4,
         "failed": 3
+      },
+      "2025-03-25": {
+        "count": 3,
+        "successful": 3,
+        "failed": 0
       }
     }
   }

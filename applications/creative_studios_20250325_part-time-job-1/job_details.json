@@ -1,0 +1,25 @@
+{
+  "job_id": "part-time-job-1",
+  "job_title": "Frontend Developer (Part-Time)",
+  "employer_name": "Creative Studios",
+  "job_city": "Remote",
+  "job_country": "US",
+  "job_min_salary": 30,
+  "job_max_salary": 40,
+  "job_salary_period": "hourly",
+  "job_description": "\n                Creative Studios is seeking a part-time Frontend Developer to assist with various design projects.\n\n                Responsibilities:\n                - Implement frontend designs using HTML, CSS, and JavaScript\n                - Create responsive web pages\n                - Optimize sites for performance and usability\n                - 20 hours per week, flexible scheduling\n\n                Requirements:\n                - Strong HTML, CSS, and JavaScript skills\n                - Knowledge of responsive design principles\n                - Portfolio of previous work\n                - Available at least 20 hours per week\n                ",
+  "job_apply_link": "https://example.com/apply/parttime1",
+  "job_employment_type": "PARTTIME",
+  "job_is_remote": true,
+  "job_posted_at_timestamp": 1742635595,
+  "job_required_skills": [
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "Responsive Design"
+  ],
+  "job_required_experience": {
+    "minimum_years": 1,
+    "maximum_years": 3
+  }
+}

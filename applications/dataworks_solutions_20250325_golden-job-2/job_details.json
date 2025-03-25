@@ -1,0 +1,58 @@
+{
+  "job_id": "golden-job-2",
+  "job_title": "Python Backend Developer",
+  "employer_name": "DataWorks Solutions",
+  "job_city": "Oklahoma City",
+  "job_country": "US",
+  "job_min_salary": 110000,
+  "job_max_salary": 135000,
+  "job_salary_period": "yearly",
+  "job_description": "\n                EXCELLENT OPPORTUNITY: Join DataWorks Solutions as a Python Backend Developer in our Oklahoma City office!\n\n                About the Role:\n                We're looking for a talented Python Developer to help build our next-generation data processing platform. This is a key position working on core systems that process millions of data points daily.\n\n                What You'll Do:\n                - Develop high-performance backend services using Python\n                - Design and implement RESTful APIs and microservices\n                - Work with large-scale databases and data processing pipelines\n                - Participate in system architecture decisions\n\n                Required Skills:\n                - Strong Python programming skills\n                - Experience with Django or Flask frameworks\n                - Knowledge of SQL and database optimization\n                - Understanding of RESTful API design principles\n                - Comfortable with Git version control\n\n                Benefits:\n                - Competitive salary ($110K-$135K)\n                - Modern downtown office with standing desks\n                - Comprehensive benefits package with health, dental, and vision\n                - Flexible work schedule with 2 days WFH option\n                - Generous PTO policy\n                - Professional growth opportunities\n                \n                This position offers an excellent opportunity to work on challenging technical problems with a growing company right here in Oklahoma City!\n                ",
+  "job_apply_link": "https://example.com/apply/golden2",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": false,
+  "job_posted_at_timestamp": 1742520395,
+  "job_required_skills": [
+    "Python",
+    "Django",
+    "Flask",
+    "SQL",
+    "REST APIs",
+    "Microservices",
+    "Git",
+    "PostgreSQL",
+    "Docker"
+  ],
+  "job_required_experience": {
+    "minimum_years": 3,
+    "maximum_years": 6
+  },
+  "job_benefits": [
+    "Health Insurance",
+    "Dental Insurance",
+    "Vision Insurance",
+    "Flexible Schedule",
+    "Professional Development",
+    "Generous PTO"
+  ],
+  "job_highlights": {
+    "Qualifications": [
+      "Strong Python programming skills",
+      "Experience with Django or Flask",
+      "Knowledge of SQL and database optimization",
+      "Understanding of RESTful API design"
+    ],
+    "Responsibilities": [
+      "Develop high-performance backend services",
+      "Design and implement RESTful APIs",
+      "Work with large-scale databases",
+      "Participate in architecture decisions"
+    ],
+    "Benefits": [
+      "Competitive salary",
+      "Modern downtown office",
+      "Comprehensive benefits package",
+      "Flexible work schedule"
+    ]
+  }
+}

@@ -97,13 +97,17 @@ class JobSearcher:
         """
         all_jobs = []
         
-        # If using mock data, return mock jobs
-        if self.use_mock_data:
+        # Get setting to use real scraping
+        use_real_scraping = os.getenv("USE_REAL_SCRAPING", "false").lower() == "true"
+        
+        # If using mock data and not real scraping, return mock jobs
+        if self.use_mock_data and not use_real_scraping:
             logger.info("Generating mock job data for testing")
             return self._get_mock_jobs()
         
-        # Use Bright Data scraper if enabled
+        # Use Bright Data scraper if enabled (even in test mode)
         if self.use_brightdata and self.bright_data:
+            logger.info("Using Bright Data to scrape job listings")
             all_jobs = self._search_with_brightdata()
         else:
             # Use existing API methods if Bright Data is not enabled
@@ -123,6 +127,8 @@ class JobSearcher:
                         
                     except Exception as e:
                         logger.error(f"Error searching for {title} in {location}: {str(e)}")
+            logger.warning("Bright Data not enabled, falling back to mock data")
+            return self._get_mock_jobs()
         
         # Process the jobs
         return self._process_jobs(all_jobs)
@@ -749,64 +755,78 @@ class JobSearcher:
 
     def _search_with_brightdata(self):
         """
-        Search for jobs using the Bright Data scraper
+        Search for jobs using Bright Data web scrapers
         
         Returns:
             list: Job listings
         """
-        all_jobs = []
+        job_listings = []
         
-        # Search across all job titles and locations
-        for title in self.job_titles:
-            for location in self.job_locations:
-                try:
-                    # Search Indeed
-                    logger.info(f"Searching for {title} in {location}")
+        try:
+            # Get search parameters from config
+            job_titles = self.job_titles
+            locations = self.job_locations
+            
+            # Log search details
+            logger.info(f"Searching for jobs with Bright Data for {len(job_titles)} job titles in {len(locations)} locations")
+            
+            # Search on different platforms for each job title and location
+            for job_title in job_titles:
+                for location in locations:
+                    # LinkedIn search
+                    linkedin_jobs = self.bright_data.search_linkedin(job_title, location)
+                    job_listings.extend(linkedin_jobs)
                     
                     # Indeed search
-                    indeed_jobs = self.bright_data.search_indeed_jobs(title, location)
-                    if indeed_jobs:
-                        all_jobs.extend(indeed_jobs)
-                        logger.info(f"Found {len(indeed_jobs)} jobs on Indeed for {title} in {location}")
+                    indeed_jobs = self.bright_data.search_indeed(job_title, location)
+                    job_listings.extend(indeed_jobs)
                     
-                    # LinkedIn search
-                    linkedin_jobs = self.bright_data.search_linkedin_jobs(title, location)
-                    if linkedin_jobs:
-                        all_jobs.extend(linkedin_jobs)
-                        logger.info(f"Found {len(linkedin_jobs)} jobs on LinkedIn for {title} in {location}")
+                    # Glassdoor search
+                    glassdoor_jobs = self.bright_data.search_glassdoor(job_title, location)
+                    job_listings.extend(glassdoor_jobs)
                     
-                    # Apply delay between searches
-                    time.sleep(self.request_delay)
-                    
-                except Exception as e:
-                    logger.error(f"Error searching for jobs with Bright Data: {str(e)}")
-                    time.sleep(self.request_delay * 2)  # Longer delay after error
+                    # Wait to avoid rate limiting
+                    if not self.bright_data.test_mode:
+                        time.sleep(1)
+                        
+            # Process the job listings to filter out any duplicates
+            unique_job_listings = self._remove_duplicates(job_listings)
+            
+            logger.info(f"Found {len(unique_job_listings)} unique job listings with Bright Data")
+            return unique_job_listings
+            
+        except Exception as e:
+            logger.error(f"Error searching jobs with Bright Data: {str(e)}")
+            return []
+            
+    def _remove_duplicates(self, job_listings):
+        """
+        Remove duplicate job listings based on job title and employer
         
-        # Get detailed job information
-        enriched_jobs = []
-        for job in all_jobs:
-            try:
-                if job.get('job_apply_link'):
-                    # Get detailed job info
-                    detailed_job = self.bright_data.get_job_details(job.get('job_apply_link'))
-                    
-                    # Merge the detailed info with the basic job info
-                    if detailed_job:
-                        job.update(detailed_job)
-                    
-                # Add the enriched job
-                enriched_jobs.append(job)
-                
-                # Apply delay between job detail requests
-                time.sleep(self.request_delay)
-                
-            except Exception as e:
-                logger.error(f"Error getting job details: {str(e)}")
-                # Still add the basic job info
-                enriched_jobs.append(job)
-                time.sleep(self.request_delay)
+        Args:
+            job_listings (list): List of job dictionaries
+            
+        Returns:
+            list: Filtered list of unique jobs
+        """
+        unique_jobs = {}
         
-        return enriched_jobs
+        for job in job_listings:
+            job_id = job.get('job_id')
+            title = job.get('job_title', '').lower()
+            employer = job.get('employer_name', '').lower()
+            
+            # Create a unique key
+            if job_id:
+                key = job_id
+            else:
+                key = f"{title}_{employer}"
+                
+            # Only add if not a duplicate
+            if key not in unique_jobs:
+                unique_jobs[key] = job
+                
+        return list(unique_jobs.values())
 
     def _process_jobs(self, jobs):
         """

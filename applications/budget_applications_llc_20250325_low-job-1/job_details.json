@@ -1,0 +1,32 @@
+{
+  "job_id": "low-job-1",
+  "job_title": "Full Stack Developer (Entry Level)",
+  "employer_name": "Budget Applications LLC",
+  "job_city": "Remote",
+  "job_country": "US",
+  "job_min_salary": 40000,
+  "job_max_salary": 45000,
+  "job_salary_period": "yearly",
+  "job_description": "\n                Budget Applications is hiring a Full Stack Developer with a can-do attitude!\n\n                What we're looking for:\n                - Proficiency in JavaScript, React, Node.js, Express, MongoDB\n                - Experience with AWS, Docker, Kubernetes\n                - Knowledge of Python, Java, and C#\n                - Excellent communication skills\n                - Ability to work under tight deadlines\n                - Available for occasional weekend work\n                - Willing to be on-call\n\n                This is an entry-level position with great learning opportunities!\n                ",
+  "job_apply_link": "https://example.com/apply/low1",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": true,
+  "job_posted_at_timestamp": 1742613995,
+  "job_required_skills": [
+    "JavaScript",
+    "React",
+    "Node.js",
+    "Express",
+    "MongoDB",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Python",
+    "Java",
+    "C#"
+  ],
+  "job_required_experience": {
+    "minimum_years": 0,
+    "maximum_years": 1
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "job_id": "low-job-2",
+  "job_title": "Web Developer",
+  "employer_name": "Generic IT Solutions",
+  "job_city": "Oklahoma City",
+  "job_country": "US",
+  "job_min_salary": 0,
+  "job_max_salary": 0,
+  "job_salary_period": "",
+  "job_description": "\n                We are looking for a web developer to join our team. The ideal candidate will be responsible for coding and developing websites and web applications. Salary is competitive and based on experience.\n\n                Required skills:\n                - Programming knowledge\n                - Web development experience\n                - Good communication\n                - Team player\n                ",
+  "job_apply_link": "https://example.com/apply/low2",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": false,
+  "job_posted_at_timestamp": 1742523995,
+  "job_required_skills": [
+    "Web Development"
+  ],
+  "job_required_experience": {
+    "minimum_years": 1,
+    "maximum_years": 3
+  }
+}

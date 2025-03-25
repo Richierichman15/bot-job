@@ -1,0 +1,27 @@
+{
+  "job_id": "standard-job-1",
+  "job_title": "JavaScript Developer",
+  "employer_name": "WebSoft Solutions",
+  "job_city": "Remote",
+  "job_country": "US",
+  "job_min_salary": 85000,
+  "job_max_salary": 105000,
+  "job_salary_period": "yearly",
+  "job_description": "\n                WebSoft Solutions is seeking a JavaScript Developer to join our development team.\n\n                Responsibilities:\n                - Develop responsive web applications using JavaScript frameworks\n                - Write clean, maintainable code\n                - Troubleshoot and debug issues\n                - Collaborate with the design team\n\n                Requirements:\n                - 2+ years experience with JavaScript\n                - Experience with React or Angular\n                - Understanding of RESTful APIs\n                - Basic knowledge of HTML/CSS\n                \n                Benefits include health insurance, 401(k), and flexible work options.\n                ",
+  "job_apply_link": "https://example.com/apply/standard1",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": true,
+  "job_posted_at_timestamp": 1742840795,
+  "job_required_skills": [
+    "JavaScript",
+    "React",
+    "Angular",
+    "HTML",
+    "CSS",
+    "RESTful APIs"
+  ],
+  "job_required_experience": {
+    "minimum_years": 2,
+    "maximum_years": 4
+  }
+}

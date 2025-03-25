@@ -1,0 +1,26 @@
+{
+  "job_id": "standard-job-3",
+  "job_title": "React Developer (Contract)",
+  "employer_name": "TechStaff Inc.",
+  "job_city": "Remote",
+  "job_country": "US",
+  "job_min_salary": 50,
+  "job_max_salary": 70,
+  "job_salary_period": "hourly",
+  "job_description": "\n                TechStaff Inc. is seeking a React Developer for a 6-month contract role.\n\n                Responsibilities:\n                - Build user interfaces using React\n                - Integrate with backend APIs\n                - Help maintain existing applications\n                - Write unit tests\n\n                Requirements:\n                - Experience with React\n                - Understanding of JavaScript, HTML, and CSS\n                - Able to work independently\n                - Available for full-time hours (40 hours/week)\n                ",
+  "job_apply_link": "https://example.com/apply/standard3",
+  "job_employment_type": "CONTRACTOR",
+  "job_is_remote": true,
+  "job_posted_at_timestamp": 1742556395,
+  "job_required_skills": [
+    "React",
+    "JavaScript",
+    "HTML",
+    "CSS",
+    "Jest"
+  ],
+  "job_required_experience": {
+    "minimum_years": 1,
+    "maximum_years": 3
+  }
+}

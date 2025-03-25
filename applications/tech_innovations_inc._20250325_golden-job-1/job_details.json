@@ -1,0 +1,59 @@
+{
+  "job_id": "golden-job-1",
+  "job_title": "Senior Full Stack Engineer",
+  "employer_name": "Tech Innovations Inc.",
+  "job_city": "Remote",
+  "job_country": "US",
+  "job_min_salary": 140000,
+  "job_max_salary": 180000,
+  "job_salary_period": "yearly",
+  "job_description": "\n                EXCEPTIONAL OPPORTUNITY: Tech Innovations Inc. is seeking a Senior Full Stack Engineer to join our growing team!\n\n                About Us:\n                We're a fast-growing tech company focusing on AI-driven solutions that are changing how businesses operate. We've secured $50M in Series B funding and are expanding our engineering team.\n\n                What You'll Do:\n                - Build scalable, robust applications using modern technologies\n                - Lead development of new product features from conception to deployment\n                - Mentor junior engineers and foster technical excellence\n                - Collaborate with cross-functional teams to define requirements\n\n                Required Skills:\n                - 4+ years experience with JavaScript/TypeScript, React, and Node.js\n                - Strong understanding of database systems (SQL and NoSQL)\n                - Experience with cloud platforms (AWS, Azure, or GCP)\n                - Track record of leading complex technical projects\n\n                Benefits:\n                - Competitive salary ($140K-$180K)\n                - 100% remote work with flexible hours\n                - Comprehensive health benefits\n                - 401(k) matching\n                - 4 weeks paid vacation\n                - Professional development budget\n                - Home office stipend\n                \n                This is a rare opportunity to join a team that's making a real impact with cutting-edge technology. Apply now to grow your career with us!\n                ",
+  "job_apply_link": "https://example.com/apply/golden1",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": true,
+  "job_posted_at_timestamp": 1742628395,
+  "job_required_skills": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "AWS",
+    "SQL",
+    "NoSQL",
+    "System Design",
+    "Team Leadership",
+    "CI/CD"
+  ],
+  "job_required_experience": {
+    "minimum_years": 4,
+    "maximum_years": 8
+  },
+  "job_benefits": [
+    "Health Insurance",
+    "401(k) Matching",
+    "Remote Work",
+    "Flexible Hours",
+    "Professional Development",
+    "Home Office Stipend"
+  ],
+  "job_highlights": {
+    "Qualifications": [
+      "4+ years experience with JavaScript/TypeScript",
+      "Experience with React and Node.js",
+      "Strong understanding of database systems",
+      "Experience with cloud platforms"
+    ],
+    "Responsibilities": [
+      "Build scalable applications",
+      "Lead development of new product features",
+      "Mentor junior engineers",
+      "Collaborate with cross-functional teams"
+    ],
+    "Benefits": [
+      "Competitive salary",
+      "100% remote work",
+      "Comprehensive health benefits",
+      "4 weeks paid vacation"
+    ]
+  }
+}

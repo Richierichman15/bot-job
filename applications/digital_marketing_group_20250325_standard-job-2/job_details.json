@@ -1,0 +1,26 @@
+{
+  "job_id": "standard-job-2",
+  "job_title": "Junior Web Developer",
+  "employer_name": "Digital Marketing Group",
+  "job_city": "Oklahoma City",
+  "job_country": "US",
+  "job_min_salary": 60000,
+  "job_max_salary": 75000,
+  "job_salary_period": "yearly",
+  "job_description": "\n                Digital Marketing Group is looking for a Junior Web Developer to assist with client websites.\n\n                Responsibilities:\n                - Develop and maintain client websites\n                - Implement designs in HTML/CSS\n                - Update website content\n                - Assist with WordPress customizations\n\n                Requirements:\n                - Knowledge of HTML, CSS, and JavaScript\n                - Experience with WordPress\n                - Basic understanding of PHP\n                - Attention to detail\n                ",
+  "job_apply_link": "https://example.com/apply/standard2",
+  "job_employment_type": "FULLTIME",
+  "job_is_remote": false,
+  "job_posted_at_timestamp": 1742318795,
+  "job_required_skills": [
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "WordPress",
+    "PHP"
+  ],
+  "job_required_experience": {
+    "minimum_years": 0,
+    "maximum_years": 2
+  }
+}
