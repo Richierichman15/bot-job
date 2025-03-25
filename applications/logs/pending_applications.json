@@ -1,0 +1,202 @@
+[
+  {
+    "job_id": "glassdoor-1",
+    "job_title": "Software Engineer Specialist 1",
+    "employer_name": "Glassdoor Test Company 1",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-1",
+    "job_source": "glassdoor",
+    "application_date": "2025-03-25T13:42:45.647842",
+    "status": "submitted",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_1_20250325_software_engineer_specialist_1/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_1_20250325_software_engineer_specialist_1/cover_letter_Glassdoor_Test_Company_1.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_1_20250325_software_engineer_specialist_1",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-2",
+    "job_title": "Software Engineer Specialist 2",
+    "employer_name": "Glassdoor Test Company 2",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-2",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_2_20250325_software_engineer_specialist_2/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_2_20250325_software_engineer_specialist_2/cover_letter_Glassdoor_Test_Company_2.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_2_20250325_software_engineer_specialist_2",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-3",
+    "job_title": "Software Engineer Specialist 3",
+    "employer_name": "Glassdoor Test Company 3",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-3",
+    "job_source": "glassdoor",
+    "application_date": "2025-03-25T13:42:59.647289",
+    "status": "submitted",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_3_20250325_software_engineer_specialist_3/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_3_20250325_software_engineer_specialist_3/cover_letter_Glassdoor_Test_Company_3.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_3_20250325_software_engineer_specialist_3",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-4",
+    "job_title": "Software Engineer Specialist 4",
+    "employer_name": "Glassdoor Test Company 4",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-4",
+    "job_source": "glassdoor",
+    "application_date": "2025-03-25T13:46:29.298272",
+    "status": "submitted",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_4_20250325_software_engineer_specialist_4/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_4_20250325_software_engineer_specialist_4/cover_letter_Glassdoor_Test_Company_4.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_4_20250325_software_engineer_specialist_4",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-5",
+    "job_title": "Software Engineer Specialist 5",
+    "employer_name": "Glassdoor Test Company 5",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-5",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_5_20250325_software_engineer_specialist_5/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_5_20250325_software_engineer_specialist_5/cover_letter_Glassdoor_Test_Company_5.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_5_20250325_software_engineer_specialist_5",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-6",
+    "job_title": "Software Engineer Specialist 6",
+    "employer_name": "Glassdoor Test Company 6",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-6",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_6_20250325_software_engineer_specialist_6/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_6_20250325_software_engineer_specialist_6/cover_letter_Glassdoor_Test_Company_6.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_6_20250325_software_engineer_specialist_6",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-7",
+    "job_title": "Software Engineer Specialist 7",
+    "employer_name": "Glassdoor Test Company 7",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-7",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_7_20250325_software_engineer_specialist_7/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_7_20250325_software_engineer_specialist_7/cover_letter_Glassdoor_Test_Company_7.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_7_20250325_software_engineer_specialist_7",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-8",
+    "job_title": "Software Engineer Specialist 8",
+    "employer_name": "Glassdoor Test Company 8",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-8",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_8_20250325_software_engineer_specialist_8/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_8_20250325_software_engineer_specialist_8/cover_letter_Glassdoor_Test_Company_8.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_8_20250325_software_engineer_specialist_8",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-9",
+    "job_title": "Software Engineer Specialist 9",
+    "employer_name": "Glassdoor Test Company 9",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-9",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_9_20250325_software_engineer_specialist_9/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_9_20250325_software_engineer_specialist_9/cover_letter_Glassdoor_Test_Company_9.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_9_20250325_software_engineer_specialist_9",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  },
+  {
+    "job_id": "glassdoor-10",
+    "job_title": "Software Engineer Specialist 10",
+    "employer_name": "Glassdoor Test Company 10",
+    "job_location": "Remote",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-10",
+    "job_source": "glassdoor",
+    "application_date": null,
+    "status": "pending",
+    "resume_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_10_20250325_software_engineer_specialist_10/GN.pdf",
+    "cover_letter_path": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_10_20250325_software_engineer_specialist_10/cover_letter_Glassdoor_Test_Company_10.txt",
+    "application_dir": "/Users/gitonga-nyaga/github/job/applications/glassdoor_test_company_10_20250325_software_engineer_specialist_10",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "required_skills": [
+      "Python",
+      "JavaScript",
+      "AWS",
+      "Communication"
+    ]
+  }
+]

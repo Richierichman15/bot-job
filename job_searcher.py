@@ -23,32 +23,52 @@ logger = logging.getLogger("job_searcher")
 load_dotenv()
 
 class JobSearcher:
-    def __init__(self):
-        # Check if we should use mock data for testing
-        self.use_mock_data = os.getenv("USE_MOCK_DATA", "false").lower() == "true"
+    def __init__(self, config_file=None, use_mock_data=None, use_brightdata=None, bright_data_test_mode=None):
+        """
+        Initialize the JobSearcher with configuration settings
         
-        # Check if we should use Bright Data scraping
-        self.use_brightdata = os.getenv("USE_BRIGHTDATA", "false").lower() == "true"
+        Args:
+            config_file (str): Path to the config file
+            use_mock_data (bool): Whether to use mock data for testing
+            use_brightdata (bool): Whether to use Bright Data for scraping
+            bright_data_test_mode (bool): Whether to run Bright Data in test mode
+        """
+        # Load config file if provided
+        self.config = {}
+        if config_file and os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    self.config = json.load(f)
+                logger.info(f"Loaded configuration from {config_file}")
+            except Exception as e:
+                logger.error(f"Error loading config file: {str(e)}")
+        
+        # Check if we should use mock data for testing (parameter overrides env var)
+        self.use_mock_data = use_mock_data if use_mock_data is not None else os.getenv("USE_MOCK_DATA", "false").lower() == "true"
+        
+        # Check if we should use Bright Data scraping (parameter overrides env var)
+        self.use_brightdata = use_brightdata if use_brightdata is not None else os.getenv("USE_BRIGHTDATA", "false").lower() == "true"
         
         self.api_key = os.getenv("JSEARCH_API_KEY")
         self.api_host = os.getenv("JSEARCH_API_HOST")
         
         if not self.use_mock_data and (not self.api_key or not self.api_host):
-            raise ValueError("API credentials not found in .env file")
+            logger.warning("API credentials not found in .env file, falling back to mock data")
+            self.use_mock_data = True
         
-        self.base_url = f"https://{self.api_host}"
+        self.base_url = f"https://{self.api_host}" if self.api_host else ""
         self.headers = {
             'x-rapidapi-key': self.api_key,
             'x-rapidapi-host': self.api_host
-        }
+        } if self.api_key and self.api_host else {}
         
-        # Get job titles to search for
+        # Get job titles to search for (config overrides env vars)
         job_titles_str = os.getenv("JOB_TITLES", "software developer")
-        self.job_titles = [title.strip() for title in job_titles_str.split(",")]
+        self.job_titles = self.config.get("job_titles", []) or [title.strip() for title in job_titles_str.split(",")]
         
-        # Get locations to search in
+        # Get locations to search in (config overrides env vars)
         job_locations_str = os.getenv("JOB_LOCATIONS", "usa,remote")
-        self.job_locations = [loc.strip() for loc in job_locations_str.split(",")]
+        self.job_locations = self.config.get("locations", []) or [loc.strip() for loc in job_locations_str.split(",")]
         
         # Get employment types to filter by
         employment_types_str = os.getenv("JOB_EMPLOYMENT_TYPES", "FULLTIME,CONTRACTOR")
@@ -79,10 +99,12 @@ class JobSearcher:
         
         # Initialize Bright Data scraper if needed
         self.bright_data = None
-        if self.use_brightdata and not self.use_mock_data:
+        if self.use_brightdata:
             try:
-                self.bright_data = BrightDataScraper()
-                logger.info("Initialized Bright Data scraper for job search")
+                # Use the test_mode parameter if provided, otherwise use the env var
+                test_mode = bright_data_test_mode if bright_data_test_mode is not None else os.getenv("BRIGHTDATA_TEST_MODE", "false").lower() == "true"
+                self.bright_data = BrightDataScraper(test_mode=test_mode)
+                logger.info(f"Initialized Bright Data scraper for job search (test mode: {test_mode})")
             except ValueError as e:
                 logger.error(f"Failed to initialize Bright Data scraper: {str(e)}")
                 logger.warning("Falling back to mock data")
@@ -830,55 +852,81 @@ class JobSearcher:
 
     def _process_jobs(self, jobs):
         """
-        Process the jobs by filtering and scoring them
+        Process job listings to filter out irrelevant ones
         
         Args:
-            jobs (list): List of job dictionaries
+            jobs (list): Job listings to process
             
         Returns:
-            list: Processed job listings
+            list: Filtered job listings
         """
+        # Filter out duplicate and irrelevant jobs
         processed_jobs = []
         
-        # Calculate timestamp for "fetched_at"
-        timestamp = datetime.now().isoformat()
-        
-        # Apply filters and scoring to each job
         for job in jobs:
             try:
-                # Ensure required fields have values
-                job_title = job.get('job_title', '')
-                job_description = job.get('job_description', '')
-                
-                # Skip jobs with no title or description
-                if not job_title or not job_description:
-                    continue
-                
-                # Filter based on job title keywords
-                if not self._matches_job_filters(job_title, job_description):
-                    continue
-                
-                # Check minimum salary requirements if set
-                min_salary = self.min_salary if hasattr(self, 'min_salary') else 0
-                if min_salary > 0 and job.get('job_min_salary'):
-                    if job.get('job_salary_period') == 'hourly' and job.get('job_min_salary') < min_salary / 2080:
-                        continue
-                    elif job.get('job_salary_period') == 'yearly' and job.get('job_min_salary') < min_salary:
-                        continue
-                
-                # Check employment type requirements
-                if self.employment_types and job.get('job_employment_type') and job.get('job_employment_type') not in self.employment_types:
-                    continue
-                
-                # Add fetched timestamp
-                job['fetched_at'] = timestamp
-                
-                # Add to processed jobs
-                processed_jobs.append(job)
-                
+                # Check if job meets our filtering criteria
+                if self._matches_job_filters(job):
+                    processed_jobs.append(job)
             except Exception as e:
                 logger.error(f"Error processing job: {str(e)}")
-                continue
         
         logger.info(f"Processed {len(processed_jobs)} jobs after filtering")
-        return processed_jobs 
+        return processed_jobs
+    
+    def _matches_job_filters(self, job):
+        """
+        Check if a job matches our filtering criteria
+        
+        Args:
+            job (dict): Job to check
+            
+        Returns:
+            bool: True if job matches criteria, False otherwise
+        """
+        # Skip jobs without required fields
+        if not job.get('job_title') or not job.get('employer_name'):
+            return False
+        
+        # Check if salary meets requirements (if available)
+        if self.min_salary > 0 and job.get('job_min_salary'):
+            if not self._meets_salary_requirements(job):
+                return False
+        
+        # Check if job title matches what we're looking for
+        title_match = False
+        job_title = job.get('job_title', '').lower()
+        
+        for title in self.job_titles:
+            if title.lower() in job_title:
+                title_match = True
+                break
+        
+        if not title_match:
+            return False
+        
+        # Check for excluded companies
+        excluded_companies = self.config.get('excluded_companies', [])
+        employer_name = job.get('employer_name', '').lower()
+        
+        for company in excluded_companies:
+            if company.lower() in employer_name:
+                return False
+        
+        # Check for excluded terms in title
+        excluded_titles = self.config.get('excluded_titles', [])
+        
+        for term in excluded_titles:
+            if term.lower() in job_title:
+                return False
+        
+        # Check for excluded terms in description
+        excluded_terms = self.config.get('excluded_terms', [])
+        job_description = job.get('job_description', '').lower()
+        
+        for term in excluded_terms:
+            if term.lower() in job_description:
+                return False
+        
+        # All filters passed
+        return True 

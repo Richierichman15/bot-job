@@ -16,15 +16,14 @@ import re
 from pathlib import Path
 from job_application_automator import JobApplicationAutomator
 import sys
+from error_notifier import ErrorNotifier
+from system_health_checker import SystemHealthChecker
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('job_alerts.log')
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
 
@@ -364,43 +363,179 @@ Sincerely,
                 # Sleep for a minute before retrying
                 time.sleep(60)
 
-def main():
-    """Main function"""
+def parse_arguments():
+    """
+    Parse command line arguments
+    
+    Returns:
+        argparse.Namespace: Parsed command line arguments
+    """
     parser = argparse.ArgumentParser(description="Job Alert System")
     parser.add_argument("--run-once", action="store_true", help="Run the system once and exit")
     parser.add_argument("--apply-only", action="store_true", help="Only process pending applications, don't search for new jobs")
     parser.add_argument("--limit", type=int, default=3, help="Maximum number of applications to process")
+    parser.add_argument("--search-only", action="store_true", help="Only search for jobs, don't apply")
     args = parser.parse_args()
+    return args
+
+def run_job_search(job_searcher):
+    """
+    Run the job search process
     
-    # Initialize signal handler
+    Args:
+        job_searcher (JobSearcher): Job searcher instance
+        
+    Returns:
+        list: List of job objects
+    """
+    logger.info("Starting job search process...")
+    
+    # Search for jobs using basic search
+    logger.info("Searching for jobs using basic search...")
+    jobs = job_searcher.search_jobs()
+    
+    # If there are jobs, return them
+    if jobs:
+        logger.info(f"Found {len(jobs)} matching jobs")
+        return jobs
+    else:
+        logger.warning("No jobs found")
+        return []
+
+def main():
+    """
+    Main entry point for the job alert system.
+    
+    Run the job search process, identify suitable jobs, apply to them, and generate reports.
+    """
+    # Get command line arguments
+    args = parse_arguments()
+    
+    # Configure the error notifier
+    error_notifier = ErrorNotifier()
+    system_health_checker = SystemHealthChecker(error_notifier)
+    
+    # Configure the email notifier for application updates
+    notify_email = os.getenv("NOTIFY_EMAIL")
+    email_notifier = EmailNotifier()
+    
+    # Initialize the job searcher
+    bright_data_test_mode = os.getenv("BRIGHTDATA_TEST_MODE", "true").lower() == "true"
+    use_real_scraping = os.getenv("USE_REAL_SCRAPING", "false").lower() == "true"
+    
+    logger.info(f"Bright Data Test Mode: {bright_data_test_mode}")
+    logger.info(f"Using Real Scraping: {use_real_scraping}")
+    
+    job_searcher = JobSearcher(
+        config_file="config.json",
+        use_mock_data=bright_data_test_mode and not use_real_scraping,
+        use_brightdata=True,
+        bright_data_test_mode=bright_data_test_mode
+    )
+    
+    # Initialize the job application automator
+    job_application_path = os.path.join(os.getcwd(), "applications")
+    resume_path = os.getenv("RESUME_PATH", os.path.join(os.getcwd(), "resume.pdf"))
+    
+    job_application_automator = JobApplicationAutomator(
+        resume_path=resume_path,
+        application_path=job_application_path,
+        config_file="config.json",
+        test_mode=bright_data_test_mode
+    )
+    logger.info("Initialized job application automator")
+    
+    # Initialize signal handler for graceful shutdown
     def signal_handler(sig, frame):
         logger.info("Received interrupt signal, shutting down...")
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
     
-    # Initialize system
-    system = JobAlertSystem()
-    
-    if args.apply_only:
-        if system.auto_submit and system.application_automator:
-            # Only process pending applications
-            logger.info(f"Processing pending job applications (limit: {args.limit})...")
-            applications_submitted = system.application_automator.run(limit=args.limit)
-            logger.info(f"Submitted {applications_submitted} job applications")
-        else:
-            if not system.auto_submit:
-                logger.error("Auto-submit is disabled. Enable it by setting AUTO_SUBMIT_APPLICATIONS=true in .env")
+    # Main loop
+    if args.run_once:
+        logger.info("Running job alert system once")
+        
+        # Search for jobs if not in apply-only mode
+        if not args.apply_only:
+            # Check system health before searching
+            if system_health_checker.check_system_health():
+                # Search for jobs
+                jobs = run_job_search(job_searcher)
+                
+                # Prepare job applications
+                for job in jobs:
+                    try:
+                        # Check if job meets requirements and prepare application package
+                        if job_application_automator.job_meets_requirements(job):
+                            job_application_automator.prepare_application_package(job)
+                            logger.info(f"Prepared application package for {job.get('employer_name')} - {job.get('job_title')}")
+                    except Exception as e:
+                        logger.error(f"Error preparing application for {job.get('job_title')} at {job.get('employer_name')}: {str(e)}")
+                        error_notifier.notify(f"Error preparing application: {str(e)}")
             else:
-                logger.error("Application automator initialization failed.")
+                logger.error("System health check failed, skipping job search")
+                error_notifier.notify("System health check failed")
+        
+        # Process applications if not in search-only mode
+        if not args.search_only:
+            logger.info("Processing pending job applications...")
+            try:
+                # Submit applications
+                submitted_count = job_application_automator.process_applications(limit=args.limit)
+                logger.info(f"Submitted {submitted_count} job applications")
+                
+                # Send notification if applications were submitted
+                if submitted_count > 0 and notify_email:
+                    email_notifier.send_application_report(
+                        recipient=notify_email,
+                        applications=job_application_automator.get_recent_applications(count=submitted_count)
+                    )
+            except Exception as e:
+                logger.error(f"Error processing applications: {str(e)}")
+                error_notifier.notify(f"Error processing applications: {str(e)}")
     else:
-        # Run the full system
-        if args.run_once:
-            logger.info("Running job alert system once")
-            system.run_once()
-        else:
-            logger.info("Running job alert system continuously")
-            system.run_continuous()
-    
+        logger.info("Running job alert system in continuous mode")
+        
+        while True:
+            try:
+                logger.info("Running job alert system once")
+                
+                # Search for jobs
+                if not args.apply_only and system_health_checker.check_system_health():
+                    jobs = run_job_search(job_searcher)
+                    
+                    # Prepare job applications
+                    for job in jobs:
+                        try:
+                            if job_application_automator.job_meets_requirements(job):
+                                job_application_automator.prepare_application_package(job)
+                                logger.info(f"Prepared application package for {job.get('employer_name')} - {job.get('job_title')}")
+                        except Exception as e:
+                            logger.error(f"Error preparing application: {str(e)}")
+                            error_notifier.notify(f"Error preparing application: {str(e)}")
+                
+                # Process applications
+                if not args.search_only:
+                    logger.info("Processing pending job applications...")
+                    submitted_count = job_application_automator.process_applications(limit=args.limit)
+                    logger.info(f"Submitted {submitted_count} job applications")
+                    
+                    # Send notification if applications were submitted
+                    if submitted_count > 0 and notify_email:
+                        email_notifier.send_application_report(
+                            recipient=notify_email,
+                            applications=job_application_automator.get_recent_applications(count=submitted_count)
+                        )
+                
+                # Wait for the next run
+                logger.info("Waiting for next run cycle...")
+                time.sleep(3600)  # Run every hour
+                
+            except Exception as e:
+                logger.error(f"Error in main loop: {str(e)}")
+                error_notifier.notify(f"Error in main loop: {str(e)}")
+                time.sleep(300)  # Wait 5 minutes after an error
+
 if __name__ == "__main__":
     main() 

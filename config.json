@@ -1,0 +1,67 @@
+{
+  "job_titles": [
+    "software engineer",
+    "python developer",
+    "backend developer",
+    "full stack developer",
+    "data engineer",
+    "devops engineer",
+    "site reliability engineer"
+  ],
+  "locations": [
+    "Remote",
+    "San Francisco",
+    "New York",
+    "Seattle"
+  ],
+  "employment_types": [
+    "FULLTIME",
+    "CONTRACTOR"
+  ],
+  "experience_level": "mid-level",
+  "min_salary": 100000,
+  "common_skills": [
+    "Python",
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "SQL",
+    "NoSQL",
+    "MongoDB",
+    "PostgreSQL",
+    "Django",
+    "Flask",
+    "Git",
+    "CI/CD",
+    "RESTful API",
+    "GraphQL",
+    "Machine Learning",
+    "Data Science"
+  ],
+  "excluded_companies": [
+    "Revature", 
+    "Infosys", 
+    "TCS", 
+    "Cognizant"
+  ],
+  "excluded_titles": [
+    "junior",
+    "associate",
+    "intern",
+    "leadership",
+    "manager",
+    "director"
+  ],
+  "excluded_terms": [
+    "10+ years",
+    "15+ years"
+  ],
+  "name": "Gitonga Nyaga",
+  "email": "your.email@example.com",
+  "phone": "123-456-7890",
+  "location": "San Francisco, CA"
+} 

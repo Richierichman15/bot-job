@@ -1,0 +1,12 @@
+Dear Hiring Manager,
+
+I am writing to express my interest in the Software Engineer Specialist 9 position at Glassdoor Test Company 9. With my experience in Python, JavaScript, AWS, Communication, I believe I would be a valuable addition to your team.
+
+Based on the job description, I understand you're looking for someone skilled in Python, JavaScript, AWS, Communication. Throughout my career, I've developed expertise in these areas through hands-on experience and continuous learning.
+
+Thank you for considering my application. I look forward to the opportunity to discuss how my skills and experience align with your needs.
+
+Sincerely,
+Gitonga Nyaga
+your.email@example.com
+123-456-7890

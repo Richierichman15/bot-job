@@ -1,0 +1,19 @@
+{
+    "job_id": "glassdoor-8",
+    "job_title": "Software Engineer Specialist 8",
+    "employer_name": "Glassdoor Test Company 8",
+    "job_location": "Remote",
+    "job_description": "This is a test job for software engineer in Remote. The ideal candidate will have excellent skills and experience.",
+    "job_min_salary": 70000,
+    "job_max_salary": 114000,
+    "job_salary_period": "yearly",
+    "job_apply_link": "https://www.glassdoor.com/job-listing/test-8",
+    "date_posted": "4 days ago",
+    "job_source": "glassdoor",
+    "job_required_skills": [
+        "Python",
+        "JavaScript",
+        "AWS",
+        "Communication"
+    ]
+}
