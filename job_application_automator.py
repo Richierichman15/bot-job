@@ -10,6 +10,13 @@ from dotenv import load_dotenv
 from bright_data_scraper import BrightDataScraper
 import re
 import uuid
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementNotInteractableException
+import traceback
 
 # Configure logging
 logging.basicConfig(
@@ -189,200 +196,663 @@ class JobApplicationAutomator:
     
     def submit_application(self, application):
         """
-        Submit a job application
+        Submit a job application using Selenium
         
         Args:
-            application (dict): Application data including directory and metadata
+            application (dict): Application details
             
         Returns:
             bool: True if successful, False otherwise
         """
-        # Check daily limit
-        if self.check_daily_limit():
-            return False
-        
-        app_dir = application["dir"]
-        metadata = application["metadata"]
-        app_path = application["path"]
-        
-        logger.info(f"Attempting to submit application for: {metadata.get('job_title')} at {metadata.get('company')}")
-        
-        # Get apply link
-        apply_link = metadata.get('apply_link')
-        if not apply_link:
-            logger.error(f"No apply link found for {app_dir}")
-            return False
-        
-        # Get resume path - try multiple possible filenames
-        resume_path = None
-        possible_resume_names = [
-            "GN.pdf", 
-            "Resume (1).pdf", 
-            os.path.basename(self.resume_path)
-        ]
-        
-        # Also check for resume in the source directory (might be an absolute path)
-        if os.path.exists(self.resume_path) and os.path.isfile(self.resume_path):
-            source_resume = self.resume_path
-            target_resume = os.path.join(app_path, os.path.basename(self.resume_path))
+        try:
+            # Get application details
+            job_title = application.get('metadata', {}).get('job_title', 'Unknown Position')
+            company = application.get('metadata', {}).get('company', 'Unknown Company')
+            apply_link = application.get('metadata', {}).get('apply_link')
+            application_dir = application.get('path')
             
-            # Copy the source resume to the application directory if it doesn't exist
-            if not os.path.exists(target_resume):
-                try:
-                    shutil.copy(source_resume, target_resume)
-                    logger.info(f"Copied resume from {source_resume} to {target_resume}")
-                except Exception as e:
-                    logger.error(f"Error copying resume: {str(e)}")
-        
-        # Check for resume files in the application directory
-        for name in possible_resume_names:
-            test_path = os.path.join(app_path, name)
-            if os.path.exists(test_path):
-                resume_path = test_path
-                break
+            if not apply_link:
+                logger.error(f"No application link provided for {job_title} at {company}")
+                return False
                 
-        if not resume_path:
-            logger.error(f"Resume not found in {app_path}. Tried: {', '.join(possible_resume_names)}")
+            logger.info(f"Preparing to submit application for {job_title} at {company}")
+            
+            # Check if we're in test mode
+            if self.test_mode:
+                logger.info(f"Test mode: Simulating application submission for {job_title} at {company}")
+                # Randomize success/failure for testing
+                import random
+                success = random.choice([True, True, False])  # 2/3 chance of success
+                time.sleep(2)  # Simulate processing time
+                
+                if success:
+                    logger.info(f"Test mode: Successfully submitted application to {company}")
+                    return True
+                else:
+                    logger.error(f"Test mode: Failed to submit application to {company}")
+                    return False
+            
+            # Get paths to resume and cover letter
+            resume_path = os.path.join(application_dir, "resume.pdf")
+            cover_letter_path = os.path.join(application_dir, "cover_letter.pdf")
+            
+            # Check that files exist
+            if not os.path.exists(resume_path):
+                logger.error(f"Resume not found at {resume_path}")
+                return False
+                
+            if not os.path.exists(cover_letter_path):
+                logger.warning(f"Cover letter not found at {cover_letter_path}, proceeding without it")
+            
+            # Determine which job site we're applying to
+            site_type = self._detect_job_site(apply_link)
+            
+            # Configure Chrome options
+            chrome_options = Options()
+            if not os.getenv("DEBUG_BROWSER", "false").lower() == "true":
+                chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--window-size=1920,1080")
+            
+            # Initialize the browser
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.set_page_load_timeout(60)
+            
+            try:
+                # Navigate to the application page
+                logger.info(f"Navigating to application page: {apply_link}")
+                driver.get(apply_link)
+                
+                # Wait for page to load
+                WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                
+                # Handle site-specific application process
+                if site_type == "linkedin":
+                    success = self._apply_linkedin(driver, resume_path, cover_letter_path)
+                elif site_type == "indeed":
+                    success = self._apply_indeed(driver, resume_path, cover_letter_path)
+                elif site_type == "glassdoor":
+                    success = self._apply_glassdoor(driver, resume_path, cover_letter_path)
+                else:
+                    success = self._apply_generic(driver, resume_path, cover_letter_path)
+                
+                # Take screenshot for record
+                screenshot_path = os.path.join(application_dir, "application_screenshot.png")
+                driver.save_screenshot(screenshot_path)
+                
+                if success:
+                    logger.info(f"Successfully submitted application to {company} for {job_title}")
+                    # Record application in history
+                    self._record_application(application, "submitted")
+                    return True
+                else:
+                    logger.error(f"Failed to submit application to {company} for {job_title}")
+                    # Record application in history
+                    self._record_application(application, "failed")
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"Error during application submission: {str(e)}")
+                logger.error(traceback.format_exc())
+                # Take error screenshot
+                error_screenshot_path = os.path.join(application_dir, "error_screenshot.png")
+                driver.save_screenshot(error_screenshot_path)
+                # Record application in history
+                self._record_application(application, "error", error=str(e))
+                return False
+                
+            finally:
+                # Close the browser
+                driver.quit()
+                
+        except Exception as e:
+            logger.error(f"Error preparing application: {str(e)}")
+            logger.error(traceback.format_exc())
             return False
-        
-        # Get cover letter path
-        cover_letter_path = None
-        for file in os.listdir(app_path):
-            if file.startswith("cover_letter_") and file.endswith(".txt"):
-                cover_letter_path = os.path.join(app_path, file)
-                break
-        
-        if not cover_letter_path:
-            logger.warning(f"Cover letter not found for {app_dir}")
-        
-        # Submit application
-        # In a real implementation, this would use the Bright Data API to automate form filling
-        # For now, this is a simulation
-        success = self._simulate_application_submission(apply_link, resume_path, cover_letter_path)
-        
-        if success:
-            # Update metadata
-            metadata['submitted'] = True
-            metadata['submission_date'] = datetime.now().isoformat()
-            metadata['submission_status'] = 'success'
-            
-            # Save updated metadata
-            try:
-                with open(os.path.join(app_path, "metadata.json"), 'w') as f:
-                    json.dump(metadata, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error updating metadata for {app_dir}: {str(e)}")
-            
-            # Update application history
-            self._update_application_history(metadata, True)
-            
-            logger.info(f"Successfully submitted application for {metadata.get('job_title')} at {metadata.get('company')}")
-        else:
-            # Update metadata
-            metadata['submission_attempts'] = metadata.get('submission_attempts', 0) + 1
-            metadata['last_attempt'] = datetime.now().isoformat()
-            metadata['submission_status'] = 'failed'
-            
-            # Save updated metadata
-            try:
-                with open(os.path.join(app_path, "metadata.json"), 'w') as f:
-                    json.dump(metadata, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error updating metadata for {app_dir}: {str(e)}")
-            
-            # Update application history
-            self._update_application_history(metadata, False)
-            
-            logger.error(f"Failed to submit application for {metadata.get('job_title')} at {metadata.get('company')}")
-        
-        return success
     
-    def _update_application_history(self, metadata, success):
+    def _detect_job_site(self, url):
         """
-        Update application history
+        Detect which job site the URL belongs to
         
         Args:
-            metadata (dict): Application metadata
-            success (bool): Whether submission was successful
-        """
-        today = datetime.now().strftime("%Y-%m-%d")
-        
-        # Initialize today's stats if needed
-        if today not in self.application_history["stats"]["by_date"]:
-            self.application_history["stats"]["by_date"][today] = {
-                "count": 0,
-                "successful": 0,
-                "failed": 0
-            }
-        
-        # Update stats
-        self.application_history["stats"]["total_submitted"] += 1
-        self.application_history["stats"]["by_date"][today]["count"] += 1
-        
-        if success:
-            self.application_history["stats"]["successful"] += 1
-            self.application_history["stats"]["by_date"][today]["successful"] += 1
-        else:
-            self.application_history["stats"]["failed"] += 1
-            self.application_history["stats"]["by_date"][today]["failed"] += 1
-        
-        # Add to applications list
-        application_record = {
-            "job_title": metadata.get("job_title"),
-            "company": metadata.get("company"),
-            "apply_link": metadata.get("apply_link"),
-            "date": datetime.now().isoformat(),
-            "success": success
-        }
-        
-        self.application_history["applications"].append(application_record)
-        
-        # Save updated history
-        self.save_application_history()
-    
-    def _simulate_application_submission(self, apply_link, resume_path, cover_letter_path=None):
-        """
-        Simulate submitting a job application (for testing)
-        
-        Args:
-            apply_link (str): Link to the job application page
-            resume_path (str): Path to the resume file
-            cover_letter_path (str): Path to the cover letter file
+            url (str): Application URL
             
         Returns:
-            bool: True for successful submission (80% chance), False otherwise
+            str: Site type (linkedin, indeed, glassdoor, or generic)
         """
-        # In a real implementation, this would use the Bright Data API to interact with forms
-        # For testing purposes, we simulate a submission with an 80% success rate
-        
-        # Log the start of application
-        logger.info(f"Simulating application for {apply_link}")
-        
-        # Add a delay to simulate form filling
-        time.sleep(random.uniform(2.0, 5.0))
-        
-        # Log details about what we would submit
-        logger.info(f"Would upload resume from: {resume_path}")
-        if cover_letter_path:
-            logger.info(f"Would upload cover letter from: {cover_letter_path}")
-        
-        # Simulate form filling
-        logger.info("Simulating form filling...")
-        time.sleep(random.uniform(1.0, 3.0))
-        
-        # Simulate form submission
-        logger.info("Simulating form submission...")
-        time.sleep(random.uniform(1.0, 2.0))
-        
-        # Determine success with 80% probability
-        success = random.random() < 0.8
-        
-        if success:
-            logger.info("Simulation successful!")
+        url = url.lower()
+        if "linkedin.com" in url:
+            return "linkedin"
+        elif "indeed.com" in url:
+            return "indeed"
+        elif "glassdoor.com" in url:
+            return "glassdoor"
         else:
-            logger.error("Simulation failed!")
+            return "generic"
+    
+    def _apply_linkedin(self, driver, resume_path, cover_letter_path):
+        """
+        Apply to a job on LinkedIn
         
-        return success
+        Args:
+            driver (WebDriver): Selenium WebDriver
+            resume_path (str): Path to resume file
+            cover_letter_path (str): Path to cover letter file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Wait for the apply button
+            try:
+                apply_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, ".jobs-apply-button"))
+                )
+                apply_button.click()
+            except TimeoutException:
+                logger.error("LinkedIn apply button not found")
+                return False
+            
+            # Wait for the application form
+            try:
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".jobs-easy-apply-content"))
+                )
+            except TimeoutException:
+                logger.error("LinkedIn application form not loaded")
+                return False
+            
+            # Upload resume if resume upload field is present
+            try:
+                resume_upload = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][name='resume']"))
+                )
+                resume_upload.send_keys(resume_path)
+                logger.info("Resume uploaded successfully")
+            except (TimeoutException, NoSuchElementException):
+                logger.warning("Resume upload field not found, might be pre-filled")
+            
+            # Upload cover letter if the field is present
+            try:
+                cover_letter_upload = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][name='cover-letter']"))
+                )
+                cover_letter_upload.send_keys(cover_letter_path)
+                logger.info("Cover letter uploaded successfully")
+            except (TimeoutException, NoSuchElementException):
+                logger.warning("Cover letter upload field not found, might not be required")
+            
+            # Handle multiple steps in the application process
+            while True:
+                # Look for next or submit button
+                next_button = None
+                try:
+                    # First try to find Next button
+                    next_button = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label='Continue to next step']"))
+                    )
+                except TimeoutException:
+                    try:
+                        # Then try to find Submit button
+                        next_button = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label='Submit application']"))
+                        )
+                        # If we found Submit, this is the last step
+                        next_button.click()
+                        logger.info("Application submitted successfully")
+                        return True
+                    except TimeoutException:
+                        # If no Next or Submit button, we might have reached the end or an error
+                        logger.error("No Next or Submit button found")
+                        return False
+                
+                # Click Next button and wait for next page
+                next_button.click()
+                time.sleep(2)  # Wait for the next step to load
+                
+                # Fill form fields if present (customize based on your resume details)
+                self._fill_linkedin_form_fields(driver)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error applying on LinkedIn: {str(e)}")
+            return False
+    
+    def _fill_linkedin_form_fields(self, driver):
+        """
+        Fill common LinkedIn form fields
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+        """
+        # Example of filling common fields - customize based on your information
+        fields_mapping = {
+            "input[name='phoneNumber']": os.getenv("PHONE_NUMBER", ""),
+            "input[name='email']": os.getenv("EMAIL", ""),
+            "input[id='follow-company-checkbox']": True,  # Checkbox to follow company
+        }
+        
+        for selector, value in fields_mapping.items():
+            try:
+                field = WebDriverWait(driver, 3).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                )
+                
+                if isinstance(value, bool) and value is True:
+                    # Handle checkboxes
+                    if not field.is_selected():
+                        field.click()
+                else:
+                    # Handle text inputs
+                    field.clear()
+                    field.send_keys(value)
+                    
+            except (TimeoutException, NoSuchElementException, ElementNotInteractableException):
+                # Field not present on this page, continue
+                pass
+    
+    def _apply_indeed(self, driver, resume_path, cover_letter_path):
+        """
+        Apply to a job on Indeed
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+            resume_path (str): Path to resume file
+            cover_letter_path (str): Path to cover letter file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Wait for the apply button
+            try:
+                apply_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, ".jobsearch-IndeedApplyButton"))
+                )
+                apply_button.click()
+            except TimeoutException:
+                logger.error("Indeed apply button not found")
+                return False
+            
+            # Wait for the application iframe to load
+            try:
+                iframe = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "indeedapply-iframe"))
+                )
+                driver.switch_to.frame(iframe)
+            except TimeoutException:
+                logger.error("Indeed application iframe not found")
+                return False
+            
+            # Upload resume if prompted
+            try:
+                resume_upload = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][name='resume']"))
+                )
+                resume_upload.send_keys(resume_path)
+                logger.info("Resume uploaded to Indeed")
+            except (TimeoutException, NoSuchElementException):
+                logger.warning("Indeed resume upload not found, might be pre-filled")
+            
+            # Continue button after resume upload
+            try:
+                continue_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, ".ia-continueButton"))
+                )
+                continue_button.click()
+            except TimeoutException:
+                logger.warning("Indeed continue button not found after resume upload")
+            
+            # Handle multiple steps in the Indeed application
+            step_count = 0
+            max_steps = 10  # Prevent infinite loops
+            
+            while step_count < max_steps:
+                step_count += 1
+                
+                # Fill out common fields
+                self._fill_indeed_form_fields(driver)
+                
+                # Look for continue or submit button
+                next_button = None
+                try:
+                    # First try to find continue button
+                    next_button = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, ".ia-continueButton"))
+                    )
+                except TimeoutException:
+                    try:
+                        # Then try to find submit button
+                        next_button = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, ".ia-SubmitButton"))
+                        )
+                        # If we found Submit, this is the last step
+                        next_button.click()
+                        logger.info("Indeed application submitted successfully")
+                        return True
+                    except TimeoutException:
+                        # If no continue or submit button, we might have reached the end or an error
+                        logger.error("No continue or submit button found on Indeed")
+                        return False
+                
+                # Click continue button and wait for next page
+                next_button.click()
+                time.sleep(2)  # Wait for the next step to load
+            
+            logger.warning(f"Reached maximum steps ({max_steps}) for Indeed application")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error applying on Indeed: {str(e)}")
+            return False
+    
+    def _fill_indeed_form_fields(self, driver):
+        """
+        Fill common Indeed form fields
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+        """
+        # Handle common Indeed form fields - customize based on your information
+        fields_mapping = {
+            "input[name='phone']": os.getenv("PHONE_NUMBER", ""),
+            "input[name='email']": os.getenv("EMAIL", ""),
+            # Add more field mappings as needed
+        }
+        
+        for selector, value in fields_mapping.items():
+            try:
+                field = WebDriverWait(driver, 3).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                )
+                field.clear()
+                field.send_keys(value)
+            except (TimeoutException, NoSuchElementException):
+                # Field not present on this page
+                pass
+    
+    def _apply_glassdoor(self, driver, resume_path, cover_letter_path):
+        """
+        Apply to a job on Glassdoor
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+            resume_path (str): Path to resume file
+            cover_letter_path (str): Path to cover letter file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Wait for the apply button
+            try:
+                apply_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, ".applyButton"))
+                )
+                apply_button.click()
+            except TimeoutException:
+                logger.error("Glassdoor apply button not found")
+                return False
+            
+            # Check if we're redirected to another site
+            time.sleep(5)  # Wait for potential redirect
+            
+            # If redirected to the company's site, use generic application
+            current_url = driver.current_url
+            if "glassdoor.com" not in current_url:
+                logger.info("Redirected to external site for application")
+                return self._apply_generic(driver, resume_path, cover_letter_path)
+            
+            # Handle Glassdoor's own application system
+            # Upload resume
+            try:
+                resume_upload = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][name='resume']"))
+                )
+                resume_upload.send_keys(resume_path)
+                logger.info("Resume uploaded to Glassdoor")
+            except (TimeoutException, NoSuchElementException):
+                logger.warning("Glassdoor resume upload not found")
+            
+            # Upload cover letter if field exists
+            try:
+                cover_letter_upload = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][name='coverLetter']"))
+                )
+                cover_letter_upload.send_keys(cover_letter_path)
+                logger.info("Cover letter uploaded to Glassdoor")
+            except (TimeoutException, NoSuchElementException):
+                logger.warning("Glassdoor cover letter upload not found")
+            
+            # Fill out additional fields
+            self._fill_glassdoor_form_fields(driver)
+            
+            # Submit application
+            try:
+                submit_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
+                )
+                submit_button.click()
+                logger.info("Glassdoor application submitted")
+                return True
+            except TimeoutException:
+                logger.error("Glassdoor submit button not found")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error applying on Glassdoor: {str(e)}")
+            return False
+    
+    def _fill_glassdoor_form_fields(self, driver):
+        """
+        Fill common Glassdoor form fields
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+        """
+        # Handle common Glassdoor form fields
+        fields_mapping = {
+            "input[name='firstName']": os.getenv("FIRST_NAME", ""),
+            "input[name='lastName']": os.getenv("LAST_NAME", ""),
+            "input[name='email']": os.getenv("EMAIL", ""),
+            "input[name='phoneNumber']": os.getenv("PHONE_NUMBER", ""),
+            # Add more field mappings as needed
+        }
+        
+        for selector, value in fields_mapping.items():
+            try:
+                field = WebDriverWait(driver, 3).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                )
+                field.clear()
+                field.send_keys(value)
+            except (TimeoutException, NoSuchElementException):
+                # Field not present on this page
+                pass
+    
+    def _apply_generic(self, driver, resume_path, cover_letter_path):
+        """
+        Apply to a job on a generic/unknown job site
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+            resume_path (str): Path to resume file
+            cover_letter_path (str): Path to cover letter file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Look for common file upload elements for resume
+            resume_selectors = [
+                "input[type='file'][name*='resume' i]",
+                "input[type='file'][id*='resume' i]",
+                "input[type='file'][name*='cv' i]",
+                "input[type='file'][id*='cv' i]",
+                "input[type='file'][name*='file' i]",
+                "input[type='file']"  # Generic fallback
+            ]
+            
+            resume_uploaded = False
+            for selector in resume_selectors:
+                try:
+                    resume_upload = WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    resume_upload.send_keys(resume_path)
+                    logger.info(f"Resume uploaded using selector: {selector}")
+                    resume_uploaded = True
+                    break
+                except (TimeoutException, NoSuchElementException, ElementNotInteractableException):
+                    continue
+            
+            if not resume_uploaded:
+                logger.warning("Could not find resume upload field")
+            
+            # Look for common file upload elements for cover letter
+            cover_letter_selectors = [
+                "input[type='file'][name*='cover' i]",
+                "input[type='file'][id*='cover' i]",
+                "input[type='file'][name*='letter' i]",
+                "input[type='file'][id*='letter' i]"
+            ]
+            
+            cover_letter_uploaded = False
+            for selector in cover_letter_selectors:
+                try:
+                    cover_letter_upload = WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    cover_letter_upload.send_keys(cover_letter_path)
+                    logger.info(f"Cover letter uploaded using selector: {selector}")
+                    cover_letter_uploaded = True
+                    break
+                except (TimeoutException, NoSuchElementException, ElementNotInteractableException):
+                    continue
+            
+            if not cover_letter_uploaded:
+                logger.warning("Could not find cover letter upload field")
+            
+            # Fill common form fields
+            self._fill_generic_form_fields(driver)
+            
+            # Look for submit button
+            submit_selectors = [
+                "button[type='submit']",
+                "input[type='submit']",
+                "button[id*='submit' i]",
+                "button[class*='submit' i]",
+                "button[id*='apply' i]",
+                "button[class*='apply' i]",
+                "a[id*='apply' i]",
+                "a[class*='apply' i]"
+            ]
+            
+            submit_clicked = False
+            for selector in submit_selectors:
+                try:
+                    submit_button = WebDriverWait(driver, 3).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                    )
+                    submit_button.click()
+                    logger.info(f"Submit button clicked using selector: {selector}")
+                    submit_clicked = True
+                    break
+                except (TimeoutException, NoSuchElementException, ElementNotInteractableException):
+                    continue
+            
+            if not submit_clicked:
+                logger.warning("Could not find submit button")
+                return False
+            
+            # Wait to see if the submission was successful
+            time.sleep(5)
+            
+            # If the URL changed or there's a success message, assume it worked
+            # This is a simple heuristic and might need adjustment
+            current_url = driver.current_url
+            if "thank" in current_url.lower() or "success" in current_url.lower() or "confirm" in current_url.lower():
+                logger.info("Application appears to have been submitted successfully")
+                return True
+                
+            # Look for common success messages in the page
+            success_texts = ["thank you", "application received", "successfully submitted", "application submitted"]
+            page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+            
+            for text in success_texts:
+                if text in page_text:
+                    logger.info(f"Success message found: '{text}'")
+                    return True
+            
+            # If we can't confirm success, assume it might have worked
+            logger.warning("Could not confirm application submission success")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error applying on generic site: {str(e)}")
+            return False
+    
+    def _fill_generic_form_fields(self, driver):
+        """
+        Fill common form fields on generic job sites
+        
+        Args:
+            driver (WebDriver): Selenium WebDriver
+        """
+        # Map common field names to environment variables
+        fields_mapping = {
+            "input[name*='first' i]": os.getenv("FIRST_NAME", ""),
+            "input[name*='last' i]": os.getenv("LAST_NAME", ""),
+            "input[name*='email' i]": os.getenv("EMAIL", ""),
+            "input[name*='phone' i]": os.getenv("PHONE_NUMBER", ""),
+            "input[name*='address' i]": os.getenv("ADDRESS", ""),
+            "input[name*='city' i]": os.getenv("CITY", ""),
+            "input[name*='state' i]": os.getenv("STATE", ""),
+            "input[name*='zip' i]": os.getenv("ZIP_CODE", ""),
+            "input[name*='postal' i]": os.getenv("ZIP_CODE", ""),
+            "textarea[name*='cover' i]": os.getenv("COVER_LETTER_TEXT", ""),
+            # Add more common field mappings as needed
+        }
+        
+        for selector, value in fields_mapping.items():
+            if not value:  # Skip empty values
+                continue
+                
+            try:
+                fields = driver.find_elements(By.CSS_SELECTOR, selector)
+                for field in fields:
+                    if field.is_displayed() and field.is_enabled():
+                        field.clear()
+                        field.send_keys(value)
+                        logger.info(f"Filled field with selector: {selector}")
+            except Exception:
+                # Ignore errors for individual fields
+                pass
+                
+        # Handle checkboxes for terms, privacy policy, etc.
+        checkbox_selectors = [
+            "input[type='checkbox'][name*='agree' i]",
+            "input[type='checkbox'][id*='agree' i]",
+            "input[type='checkbox'][name*='terms' i]",
+            "input[type='checkbox'][id*='terms' i]",
+            "input[type='checkbox'][name*='privacy' i]",
+            "input[type='checkbox'][id*='privacy' i]"
+        ]
+        
+        for selector in checkbox_selectors:
+            try:
+                checkboxes = driver.find_elements(By.CSS_SELECTOR, selector)
+                for checkbox in checkboxes:
+                    if checkbox.is_displayed() and checkbox.is_enabled() and not checkbox.is_selected():
+                        checkbox.click()
+                        logger.info(f"Checked checkbox with selector: {selector}")
+            except Exception:
+                # Ignore errors for individual checkboxes
+                pass
     
     def run(self, limit=None):
         """

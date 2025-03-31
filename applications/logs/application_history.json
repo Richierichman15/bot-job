@@ -116,28 +116,28 @@
       "job_title": "Software Engineer Specialist 2",
       "company": "Glassdoor Test Company 2",
       "apply_link": "https://www.glassdoor.com/job-listing/test-2",
-      "date": "2025-03-25T13:46:21.476758",
-      "success": false
+      "date": "2025-03-25T14:55:38.921463",
+      "success": true
     },
     {
       "job_title": "Software Engineer Specialist 4",
       "company": "Glassdoor Test Company 4",
       "apply_link": "https://www.glassdoor.com/job-listing/test-4",
-      "date": "2025-03-25T13:46:29.297393",
+      "date": "2025-03-25T14:55:44.977927",
       "success": true
     },
     {
       "job_title": "Software Engineer Specialist 5",
       "company": "Glassdoor Test Company 5",
       "apply_link": "https://www.glassdoor.com/job-listing/test-5",
-      "date": "2025-03-25T13:46:36.419148",
+      "date": "2025-03-25T14:55:53.523745",
       "success": false
     }
   ],
   "stats": {
     "total_submitted": 19,
-    "successful": 13,
-    "failed": 6,
+    "successful": 14,
+    "failed": 5,
     "by_date": {
       "2025-03-24": {
         "count": 7,
@@ -146,8 +146,8 @@
       },
       "2025-03-25": {
         "count": 12,
-        "successful": 9,
-        "failed": 3
+        "successful": 10,
+        "failed": 2
       }
     }
   }

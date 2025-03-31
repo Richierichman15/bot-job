@@ -18,6 +18,10 @@ from job_application_automator import JobApplicationAutomator
 import sys
 from error_notifier import ErrorNotifier
 from system_health_checker import SystemHealthChecker
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 # Configure logging
 logging.basicConfig(
@@ -401,6 +405,124 @@ def run_job_search(job_searcher):
     else:
         logger.warning("No jobs found")
         return []
+
+def send_email_notification(jobs, config):
+    """
+    Send email notification about new job listings
+    
+    Args:
+        jobs (list): List of job listings
+        config (dict): Configuration with email settings
+    
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    try:
+        # Get email configuration
+        email_config = config.get('email', {})
+        smtp_server = email_config.get('smtp_server', os.getenv('SMTP_SERVER'))
+        smtp_port = int(email_config.get('smtp_port', os.getenv('SMTP_PORT', '587')))
+        smtp_username = email_config.get('smtp_username', os.getenv('SMTP_USERNAME'))
+        smtp_password = email_config.get('smtp_password', os.getenv('SMTP_PASSWORD'))
+        sender_email = email_config.get('sender_email', os.getenv('SENDER_EMAIL'))
+        recipient_email = email_config.get('recipient_email', os.getenv('RECIPIENT_EMAIL'))
+        
+        # Validate email settings
+        if not all([smtp_server, smtp_port, smtp_username, smtp_password, sender_email, recipient_email]):
+            logger.error("Missing email configuration. Cannot send notification.")
+            return False
+        
+        # Create message
+        message = MIMEMultipart()
+        message['Subject'] = f"New Job Alerts: {len(jobs)} matching positions found"
+        message['From'] = sender_email
+        message['To'] = recipient_email
+        
+        # Create HTML content
+        html_content = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
+                .job-card {{ border: 1px solid #ddd; margin: 15px 0; padding: 15px; border-radius: 5px; }}
+                .job-title {{ color: #0066cc; font-size: 18px; margin-bottom: 5px; }}
+                .company-name {{ font-weight: bold; }}
+                .job-location {{ color: #666; }}
+                .job-salary {{ color: #009900; }}
+                .job-description {{ margin-top: 10px; }}
+                .apply-button {{ 
+                    display: inline-block; 
+                    background-color: #0066cc; 
+                    color: white; 
+                    padding: 8px 15px; 
+                    text-decoration: none; 
+                    border-radius: 4px; 
+                    margin-top: 10px; 
+                }}
+            </style>
+        </head>
+        <body>
+            <h2>New Job Alerts</h2>
+            <p>We found {len(jobs)} new job positions matching your criteria:</p>
+        """
+        
+        # Add job listings
+        for job in jobs:
+            job_title = job.get('job_title', 'Unknown Position')
+            company = job.get('employer_name', 'Unknown Company')
+            location = job.get('job_city', '') + ', ' + job.get('job_state', '')
+            if not location.strip(',').strip():
+                location = job.get('job_location', 'Remote/Unknown')
+            
+            salary = job.get('job_min_salary', '')
+            if salary and job.get('job_max_salary'):
+                salary = f"${salary:,} - ${job.get('job_max_salary'):,}"
+            elif salary:
+                salary = f"${salary:,}+"
+            else:
+                salary = "Salary not specified"
+                
+            description = job.get('job_description', '')
+            if len(description) > 300:
+                description = description[:300] + "..."
+                
+            apply_link = job.get('job_apply_link', '#')
+            job_id = job.get('job_id', '')
+            
+            html_content += f"""
+            <div class="job-card">
+                <div class="job-title">{job_title}</div>
+                <div class="company-name">{company}</div>
+                <div class="job-location">{location}</div>
+                <div class="job-salary">{salary}</div>
+                <div class="job-description">{description}</div>
+                <a href="{apply_link}" class="apply-button">View Job</a>
+                <p>Job ID: {job_id}</p>
+            </div>
+            """
+        
+        html_content += """
+        <p>Click "View Job" to see the complete job description and application.</p>
+        <p>Your job application assistant is preparing these applications for you.</p>
+        </body>
+        </html>
+        """
+        
+        # Attach HTML content
+        message.attach(MIMEText(html_content, 'html'))
+        
+        # Connect to SMTP server and send
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.send_message(message)
+            
+        logger.info(f"Successfully sent email notification for {len(jobs)} jobs")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send email notification: {str(e)}")
+        return False
 
 def main():
     """
