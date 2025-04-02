@@ -11,6 +11,7 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
     TimeoutException
 )
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -32,6 +33,20 @@ class SmartFieldDetector:
         self.field_mapping = self._build_field_mapping()
         self.yes_values = ['yes', 'true', 'y', '1', 'agree']
         self.no_values = ['no', 'false', 'n', '0', 'disagree']
+        self.max_retries = 3
+        self.retry_delay = 1  # seconds
+        self.failed_detections = []
+        self.dynamic_form_wait_time = 5  # seconds
+        self.date_formats = [
+            '%Y-%m-%d',  # 2023-01-01
+            '%m/%d/%Y',  # 01/01/2023
+            '%d/%m/%Y',  # 01/01/2023
+            '%Y/%m/%d',  # 2023/01/01
+            '%B %d, %Y', # January 1, 2023
+            '%b %d, %Y', # Jan 1, 2023
+            '%m-%d-%Y',  # 01-16-2002
+            '%d-%m-%Y',  # 16-01-2002
+        ]
         
     def _build_field_mapping(self):
         """
@@ -85,7 +100,14 @@ class SmartFieldDetector:
             'linkedin': lambda: self.profile.get('social_media', {}).get('linkedin', ''),
             'github': lambda: self.profile.get('social_media', {}).get('github', ''),
             'portfolio': lambda: self.profile.get('portfolio_url', ''),
-            'website': lambda: self.profile.get('personal_website', '')
+            'website': lambda: self.profile.get('personal_website', ''),
+            
+            # Date of Birth patterns
+            'date[ -]?of[ -]?birth': lambda: self.profile.get('date_of_birth', ''),
+            'dob': lambda: self.profile.get('date_of_birth', ''),
+            'birth[ -]?date': lambda: self.profile.get('date_of_birth', ''),
+            'birthday': lambda: self.profile.get('date_of_birth', ''),
+            'age': lambda: self._calculate_age(self.profile.get('date_of_birth', '')),
         }
         
         return mapping
@@ -110,10 +132,18 @@ class SmartFieldDetector:
         if not experience:
             return ''
             
-        # Sort by end date to get most recent job
+        # Sort by end date to get most recent job, treating 'Present' as today
+        def get_end_date(job):
+            end_date = job.get('end_date', '')
+            if end_date.lower() == 'present':
+                return datetime.now()
+            try:
+                return datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                return datetime.strptime('1900-01-01', '%Y-%m-%d')
+                
         sorted_jobs = sorted(experience,
-                            key=lambda x: datetime.strptime(x.get('end_date', '1900-01-01'), '%Y-%m-%d')
-                            if x.get('end_date') else datetime.now(),
+                            key=get_end_date,
                             reverse=True)
                             
         return sorted_jobs[0].get(field_name, '') if sorted_jobs else ''
@@ -137,24 +167,164 @@ class SmartFieldDetector:
             'processed': 0,
             'filled': 0,
             'skipped': 0,
-            'errors': 0
+            'errors': 0,
+            'retries': 0,
+            'dynamic_fields': 0
         }
         
-        # Get all input elements, selects, and textareas
-        input_elements = driver.find_elements(By.TAG_NAME, "input")
-        select_elements = driver.find_elements(By.TAG_NAME, "select")
-        textarea_elements = driver.find_elements(By.TAG_NAME, "textarea")
+        try:
+            # Wait for dynamic form elements to load
+            self._wait_for_dynamic_elements(driver)
+            
+            # Get all form elements
+            input_elements = driver.find_elements(By.TAG_NAME, "input")
+            select_elements = driver.find_elements(By.TAG_NAME, "select")
+            textarea_elements = driver.find_elements(By.TAG_NAME, "textarea")
+            
+            # Process input elements with retry mechanism
+            stats = self._process_elements_with_retry(input_elements, driver, stats, self._process_input_elements)
+            
+            # Process select elements with retry mechanism
+            stats = self._process_elements_with_retry(select_elements, driver, stats, self._process_select_elements)
+            
+            # Process textarea elements with retry mechanism
+            stats = self._process_elements_with_retry(textarea_elements, driver, stats, self._process_textarea_elements)
+            
+            # Log failed detections for analysis
+            if self.failed_detections:
+                logger.warning(f"Failed to detect {len(self.failed_detections)} fields:")
+                for field in self.failed_detections:
+                    logger.warning(f"  - {field}")
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error in detect_and_fill_fields: {str(e)}")
+            stats['errors'] += 1
+            return stats
+    
+    def _wait_for_dynamic_elements(self, driver):
+        """
+        Wait for dynamic form elements to load
         
-        # Process input elements
-        stats = self._process_input_elements(input_elements, driver, stats)
+        Args:
+            driver: Selenium WebDriver instance
+        """
+        try:
+            # Wait for any loading indicators to disappear
+            WebDriverWait(driver, self.dynamic_form_wait_time).until(
+                lambda d: len(d.find_elements(By.CSS_SELECTOR, ".loading, .spinner, [aria-busy='true']")) == 0
+            )
+            
+            # Wait for any dynamic form sections to load
+            WebDriverWait(driver, self.dynamic_form_wait_time).until(
+                lambda d: len(d.find_elements(By.CSS_SELECTOR, "[data-dynamic='true'], [data-loaded='false']")) == 0
+            )
+            
+        except Exception as e:
+            logger.warning(f"Error waiting for dynamic elements: {str(e)}")
+    
+    def _process_elements_with_retry(self, elements, driver, stats, process_func):
+        """
+        Process elements with retry mechanism for failed operations
         
-        # Process select elements
-        stats = self._process_select_elements(select_elements, driver, stats)
-        
-        # Process textarea elements
-        stats = self._process_textarea_elements(textarea_elements, driver, stats)
+        Args:
+            elements: List of elements to process
+            driver: Selenium WebDriver instance
+            stats: Current statistics
+            process_func: Function to process the elements
+            
+        Returns:
+            dict: Updated statistics
+        """
+        for element in elements:
+            retry_count = 0
+            while retry_count < self.max_retries:
+                try:
+                    # Get element attributes for field identification
+                    element_id = element.get_attribute('id') or ''
+                    element_name = element.get_attribute('name') or ''
+                    element_type = element.get_attribute('type') or ''
+                    element_placeholder = element.get_attribute('placeholder') or ''
+                    element_label = self._find_label_for_element(element, driver) or ''
+                    element_class = element.get_attribute('class') or ''
+                    
+                    # Create field identifiers
+                    field_identifiers = [
+                        element_id.lower(),
+                        element_name.lower(),
+                        element_placeholder.lower(),
+                        element_label.lower()
+                    ]
+                    
+                    # Process the element with the field identifiers
+                    if element_type == 'file':
+                        if self._handle_file_upload(element, field_identifiers):
+                            stats['filled'] += 1
+                        else:
+                            stats['skipped'] += 1
+                    elif element_type == 'date' or 'date' in element_class.lower() or 'date' in element_id.lower():
+                        if self._handle_date_picker(element, field_identifiers):
+                            stats['filled'] += 1
+                        else:
+                            stats['skipped'] += 1
+                    else:
+                        stats = process_func([element], driver, stats)
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    stats['retries'] += 1
+                    if retry_count == self.max_retries:
+                        logger.error(f"Failed to process element after {self.max_retries} retries: {str(e)}")
+                        stats['errors'] += 1
+                        # Record failed detection for analysis
+                        self._record_failed_detection(element)
+                    else:
+                        time.sleep(self.retry_delay)
         
         return stats
+    
+    def _record_failed_detection(self, element):
+        """Record information about a failed field detection for analysis"""
+        try:
+            field_info = {
+                'id': element.get_attribute('id'),
+                'name': element.get_attribute('name'),
+                'type': element.get_attribute('type'),
+                'class': element.get_attribute('class'),
+                'placeholder': element.get_attribute('placeholder'),
+                'label': self._find_label_for_element(element, element.parent)
+            }
+            self.failed_detections.append(field_info)
+        except Exception as e:
+            logger.error(f"Error recording failed detection: {str(e)}")
+    
+    def _validate_filled_field(self, element, value):
+        """
+        Validate that a field was filled correctly
+        
+        Args:
+            element: The filled element
+            value: The value that was filled
+            
+        Returns:
+            bool: True if validation passed, False otherwise
+        """
+        try:
+            if element.tag_name == 'input':
+                if element.get_attribute('type') in ['checkbox', 'radio']:
+                    return element.is_selected() == (value.lower() in self.yes_values)
+                else:
+                    return element.get_attribute('value') == value
+            elif element.tag_name == 'select':
+                select = Select(element)
+                return select.first_selected_option.text == value
+            elif element.tag_name == 'textarea':
+                return element.get_attribute('value') == value
+            return True
+        except Exception as e:
+            logger.error(f"Error validating filled field: {str(e)}")
+            return False
     
     def _process_input_elements(self, elements, driver, stats):
         """Process and fill input elements"""
@@ -179,11 +349,6 @@ class SmartFieldDetector:
                 if element_type in ['button', 'submit', 'reset', 'image']:
                     stats['skipped'] += 1
                     continue
-                    
-                # Skip file inputs (handled separately)
-                if element_type == 'file':
-                    stats['skipped'] += 1
-                    continue
                 
                 # Get current value
                 current_value = element.get_attribute('value')
@@ -199,6 +364,22 @@ class SmartFieldDetector:
                     element_label.lower()
                 ]
                 
+                # Handle file uploads
+                if element_type == 'file':
+                    if self._handle_file_upload(element, field_identifiers):
+                        stats['filled'] += 1
+                    else:
+                        stats['skipped'] += 1
+                    continue
+                
+                # Handle date pickers
+                if element_type == 'date' or 'date' in element_class.lower() or 'date' in element_id.lower():
+                    if self._handle_date_picker(element, field_identifiers):
+                        stats['filled'] += 1
+                    else:
+                        stats['skipped'] += 1
+                    continue
+                
                 # Handle checkboxes and radio buttons specially
                 if element_type == 'checkbox' or element_type == 'radio':
                     if self._handle_checkbox_radio(element, field_identifiers):
@@ -212,8 +393,12 @@ class SmartFieldDetector:
                 if value:
                     element.clear()
                     element.send_keys(value)
-                    stats['filled'] += 1
-                    logger.info(f"Filled field: {' | '.join(filter(None, field_identifiers))} with: {value}")
+                    if self._validate_filled_field(element, value):
+                        stats['filled'] += 1
+                        logger.info(f"Filled field: {' | '.join(filter(None, field_identifiers))} with: {value}")
+                    else:
+                        stats['errors'] += 1
+                        logger.error(f"Failed to fill field: {' | '.join(filter(None, field_identifiers))}")
                 else:
                     stats['skipped'] += 1
                     
@@ -468,4 +653,190 @@ class SmartFieldDetector:
         
         # As a fallback, select the first non-empty option if the field is required
         if len(options) > 1 and options[0].text.strip() in ['', 'Select', 'Choose', '-- Select --', '--Select--']:
-            select.select_by_visible_text(options[1].text) 
+            select.select_by_visible_text(options[1].text)
+    
+    def _handle_file_upload(self, element, field_identifiers):
+        """
+        Handle file upload fields
+        
+        Args:
+            element: The file input element
+            field_identifiers: List of field identifiers
+            
+        Returns:
+            bool: True if file was uploaded successfully
+        """
+        try:
+            # Determine what type of file to upload based on field identifiers
+            file_type = None
+            for identifier in field_identifiers:
+                if 'resume' in identifier or 'cv' in identifier:
+                    file_type = 'resume'
+                    break
+                elif 'cover' in identifier or 'letter' in identifier:
+                    file_type = 'cover_letter'
+                    break
+                elif 'photo' in identifier or 'picture' in identifier:
+                    file_type = 'photo'
+                    break
+            
+            if file_type:
+                # Get the appropriate file path from the user profile
+                file_path = self.profile.get(f'{file_type}_path')
+                if file_path and os.path.exists(file_path):
+                    element.send_keys(file_path)
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error handling file upload: {str(e)}")
+            return False
+    
+    def _handle_date_picker(self, element, field_identifiers):
+        """
+        Handle date picker fields with improved validation
+        
+        Args:
+            element: The date input element
+            field_identifiers: List of field identifiers
+            
+        Returns:
+            bool: True if date was filled successfully
+        """
+        try:
+            # Determine what date to fill based on field identifiers
+            date_value = None
+            for identifier in field_identifiers:
+                if not identifier:
+                    continue
+                    
+                if 'birth' in identifier or 'dob' in identifier:
+                    date_value = self.profile.get('date_of_birth')
+                    # Special handling for MM-DD-YYYY format
+                    if date_value and '-' in date_value:
+                        try:
+                            # Try to parse as MM-DD-YYYY
+                            parts = date_value.split('-')
+                            if len(parts) == 3 and len(parts[0]) == 2 and len(parts[1]) == 2 and len(parts[2]) == 4:
+                                # Format as YYYY-MM-DD for HTML date input
+                                formatted_date = f"{parts[2]}-{parts[0]}-{parts[1]}"
+                                if self._validate_date(formatted_date):
+                                    element.clear()
+                                    element.send_keys(formatted_date)
+                                    if self._verify_date_filled(element, formatted_date):
+                                        return True
+                        except Exception as e:
+                            logger.debug(f"Error handling MM-DD-YYYY format: {str(e)}")
+                    break
+                elif 'start' in identifier:
+                    if 'work' in identifier or 'job' in identifier or 'company' in identifier:
+                        date_value = self._get_latest_job('start_date')
+                    elif 'education' in identifier or 'school' in identifier:
+                        date_value = self._get_latest_education('start_date')
+                    else:
+                        date_value = self.profile.get('earliest_start_date')
+                    break
+                elif 'end' in identifier:
+                    if 'work' in identifier or 'job' in identifier or 'company' in identifier:
+                        end_date = self._get_latest_job('end_date')
+                        if end_date.lower() == 'present':
+                            date_value = datetime.now().strftime('%Y-%m-%d')
+                        else:
+                            date_value = end_date
+                    elif 'education' in identifier or 'school' in identifier:
+                        date_value = self._get_latest_education('end_date')
+                    else:
+                        date_value = self.profile.get('availability_end_date')
+                    break
+                elif 'graduation' in identifier:
+                    date_value = self._get_latest_education('graduation_date')
+                    break
+            
+            if date_value:
+                # Handle 'Present' case
+                if str(date_value).lower() == 'present':
+                    date_value = datetime.now().strftime('%Y-%m-%d')
+                
+                # Try different date formats
+                for date_format in self.date_formats:
+                    try:
+                        formatted_date = datetime.strptime(date_value, date_format).strftime('%Y-%m-%d')
+                        
+                        # Validate the date is reasonable
+                        if not self._validate_date(formatted_date):
+                            continue
+                            
+                        element.clear()
+                        element.send_keys(formatted_date)
+                        
+                        # Verify the date was filled correctly
+                        if self._verify_date_filled(element, formatted_date):
+                            return True
+                    except ValueError:
+                        continue
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error handling date picker: {str(e)}")
+            return False
+            
+    def _validate_date(self, date_str):
+        """Validate that a date is reasonable"""
+        try:
+            date = datetime.strptime(date_str, '%Y-%m-%d')
+            today = datetime.now()
+            
+            # Check if date is in the future (for birth dates)
+            if date > today:
+                logger.warning(f"Invalid future date: {date_str}")
+                return False
+                
+            # Check if date is too far in the past (e.g., before 1900)
+            if date.year < 1900:
+                logger.warning(f"Date too far in the past: {date_str}")
+                return False
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error validating date: {str(e)}")
+            return False
+            
+    def _verify_date_filled(self, element, expected_date):
+        """Verify that a date was filled correctly"""
+        try:
+            filled_date = element.get_attribute('value')
+            if not filled_date:
+                return False
+                
+            # Normalize both dates to YYYY-MM-DD format for comparison
+            try:
+                filled_normalized = datetime.strptime(filled_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                expected_normalized = datetime.strptime(expected_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                return filled_normalized == expected_normalized
+            except ValueError:
+                return False
+        except Exception as e:
+            logger.error(f"Error verifying date: {str(e)}")
+            return False
+    
+    def _calculate_age(self, dob):
+        """Calculate age from date of birth"""
+        if not dob:
+            return ''
+            
+        try:
+            # Try different date formats
+            for date_format in self.date_formats:
+                try:
+                    birth_date = datetime.strptime(dob, date_format)
+                    today = datetime.now()
+                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                    return str(age)
+                except ValueError:
+                    continue
+            return ''
+        except Exception as e:
+            logger.error(f"Error calculating age: {str(e)}")
+            return '' 

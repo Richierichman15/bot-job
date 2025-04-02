@@ -17,11 +17,64 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from smart_field_detector import SmartFieldDetector
-from mock_user_profile import get_mock_user_profile
+from dotenv import load_dotenv
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def get_user_profile_from_env():
+    """Get user profile from environment variables"""
+    load_dotenv()  # Load environment variables from .env file
+    
+    # Basic profile information
+    profile = {
+        'first_name': os.getenv('FIRST_NAME', ''),
+        'last_name': os.getenv('LAST_NAME', ''),
+        'email': os.getenv('EMAIL', ''),
+        'phone': os.getenv('PHONE', ''),
+        'date_of_birth': os.getenv('DATE_OF_BIRTH', ''),
+        
+        # Education information
+        'education': [{
+            'institution': os.getenv('EDUCATION_INSTITUTION', ''),
+            'degree': os.getenv('EDUCATION_DEGREE', ''),
+            'field_of_study': os.getenv('EDUCATION_FIELD', ''),
+            'gpa': os.getenv('EDUCATION_GPA', ''),
+            'start_date': os.getenv('EDUCATION_START_DATE', ''),
+            'end_date': os.getenv('EDUCATION_END_DATE', ''),
+            'graduation_date': os.getenv('EDUCATION_GRADUATION_DATE', '')
+        }],
+        
+        # Work experience
+        'work_experience': [{
+            'company': os.getenv('CURRENT_COMPANY', ''),
+            'title': os.getenv('CURRENT_TITLE', ''),
+            'start_date': os.getenv('WORK_START_DATE', ''),
+            'end_date': os.getenv('WORK_END_DATE', 'Present'),
+            'description': os.getenv('WORK_DESCRIPTION', '')
+        }],
+        
+        # Work preferences and eligibility
+        'work_authorization': os.getenv('WORK_AUTHORIZATION', 'true').lower() == 'true',
+        'requires_sponsorship': os.getenv('REQUIRES_SPONSORSHIP', 'false').lower() == 'true',
+        'willing_to_relocate': os.getenv('WILLING_TO_RELOCATE', 'true').lower() == 'true',
+        'willing_to_travel': os.getenv('WILLING_TO_TRAVEL', 'true').lower() == 'true',
+        'prefers_remote': os.getenv('PREFERS_REMOTE', 'true').lower() == 'true',
+        
+        # File paths
+        'resume_path': os.getenv('RESUME_PATH', ''),
+        'cover_letter_path': os.getenv('COVER_LETTER_PATH', ''),
+        'photo_path': os.getenv('PHOTO_PATH', ''),
+        
+        # Additional information
+        'earliest_start_date': os.getenv('EARLIEST_START_DATE', ''),
+        'availability_end_date': os.getenv('AVAILABILITY_END_DATE', ''),
+        'salary_expectation': os.getenv('SALARY_EXPECTATION', '')
+    }
+    
+    return profile
 
 # HTML template for test forms
 FORM_TEMPLATE = """
@@ -40,6 +93,8 @@ FORM_TEMPLATE = """
         .radio-option, .checkbox-option { margin-bottom: 5px; }
         button { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
         button:hover { background-color: #45a049; }
+        .loading { display: none; }
+        .dynamic-section { display: none; }
     </style>
 </head>
 <body>
@@ -59,28 +114,11 @@ FORM_TEMPLATE = """
             <label for="phone">Phone Number</label>
             <input type="tel" id="phone" name="phone">
             
-            <label for="address">Street Address</label>
-            <input type="text" id="address" name="address">
+            <label for="dob">Date of Birth</label>
+            <input type="date" id="dob" name="dob">
             
-            <label for="city">City</label>
-            <input type="text" id="city" name="city">
-            
-            <label for="state">State</label>
-            <select id="state" name="state">
-                <option value="">Select a state</option>
-                <option value="AL">Alabama</option>
-                <option value="AK">Alaska</option>
-                <option value="CA">California</option>
-                <option value="NY">New York</option>
-                <option value="TX">Texas</option>
-                <option value="WA">Washington</option>
-            </select>
-            
-            <label for="zipCode">ZIP Code</label>
-            <input type="text" id="zipCode" name="zipCode">
-            
-            <label for="country">Country</label>
-            <input type="text" id="country" name="country" value="United States">
+            <label for="photo">Profile Photo</label>
+            <input type="file" id="photo" name="photo" accept="image/*">
         </div>
         
         <div class="form-section">
@@ -98,7 +136,7 @@ FORM_TEMPLATE = """
             <input type="text" id="gpa" name="gpa">
             
             <label for="graduationDate">Graduation Date</label>
-            <input type="text" id="graduationDate" name="graduationDate">
+            <input type="date" id="graduationDate" name="graduationDate">
         </div>
         
         <div class="form-section">
@@ -109,23 +147,17 @@ FORM_TEMPLATE = """
             <label for="jobTitle">Job Title</label>
             <input type="text" id="jobTitle" name="jobTitle">
             
-            <label for="yearsOfExperience">Years of Experience</label>
-            <input type="number" id="yearsOfExperience" name="yearsOfExperience" min="0">
+            <label for="startDate">Start Date</label>
+            <input type="date" id="startDate" name="startDate">
             
-            <label for="skills">Skills</label>
-            <textarea id="skills" name="skills" rows="3"></textarea>
-        </div>
-        
-        <div class="form-section">
-            <h2>Social Media & Online Presence</h2>
-            <label for="linkedin">LinkedIn URL</label>
-            <input type="url" id="linkedin" name="linkedin">
+            <label for="endDate">End Date</label>
+            <input type="date" id="endDate" name="endDate">
             
-            <label for="github">GitHub URL</label>
-            <input type="url" id="github" name="github">
+            <label for="resume">Resume/CV</label>
+            <input type="file" id="resume" name="resume" accept=".pdf,.doc,.docx">
             
-            <label for="portfolio">Portfolio URL</label>
-            <input type="url" id="portfolio" name="portfolio">
+            <label for="coverLetter">Cover Letter</label>
+            <input type="file" id="coverLetter" name="coverLetter" accept=".pdf,.doc,.docx">
         </div>
         
         <div class="form-section">
@@ -176,8 +208,11 @@ FORM_TEMPLATE = """
             <label for="salaryExpectation">Salary Expectation</label>
             <input type="text" id="salaryExpectation" name="salaryExpectation">
             
-            <label for="coverLetter">Cover Letter or Additional Information</label>
-            <textarea id="coverLetter" name="coverLetter" rows="5"></textarea>
+            <label for="earliestStartDate">Earliest Start Date</label>
+            <input type="date" id="earliestStartDate" name="earliestStartDate">
+            
+            <label for="availabilityEndDate">Availability End Date</label>
+            <input type="date" id="availabilityEndDate" name="availabilityEndDate">
             
             <div class="checkbox-option">
                 <input type="checkbox" id="termsAgreement" name="termsAgreement" value="agreed">
@@ -187,6 +222,16 @@ FORM_TEMPLATE = """
         
         <button type="submit">Submit Application</button>
     </form>
+    
+    <script>
+        // Simulate dynamic form loading
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                document.querySelector('.loading').style.display = 'none';
+                document.querySelector('.dynamic-section').style.display = 'block';
+            }, 2000);
+        });
+    </script>
 </body>
 </html>
 """
@@ -220,7 +265,6 @@ def run_test(debug=False):
     options.add_argument("--disable-blink-features=AutomationControlled")
     
     # Create a new driver with simpler approach
-    # For macOS ARM64, we use a different approach
     try:
         # First try the simple approach
         driver = webdriver.Chrome(options=options)
@@ -251,12 +295,13 @@ def run_test(debug=False):
         driver.get(form_url)
         logger.info("Loaded test form in browser")
         
-        # Get the mock user profile
-        user_profile = get_mock_user_profile()
+        # Get the user profile from environment variables
+        user_profile = get_user_profile_from_env()
+        logger.info("Loaded user profile from environment variables")
         
         # Initialize the SmartFieldDetector
         detector = SmartFieldDetector(user_profile)
-        logger.info("Initialized SmartFieldDetector with mock user profile")
+        logger.info("Initialized SmartFieldDetector with user profile")
         
         # Run the field detection
         logger.info("Running field detection...")
@@ -268,6 +313,8 @@ def run_test(debug=False):
         logger.info(f"Filled: {stats['filled']}")
         logger.info(f"Skipped: {stats['skipped']}")
         logger.info(f"Errors: {stats.get('errors', 0)}")
+        logger.info(f"Retries: {stats.get('retries', 0)}")
+        logger.info(f"Dynamic Fields: {stats.get('dynamic_fields', 0)}")
         
         # Pause to inspect the form if in debug mode
         if debug:
@@ -280,7 +327,7 @@ def run_test(debug=False):
         logger.info(f"Saved screenshot to {screenshot_path}")
         
         # Verify the results
-        success = stats['filled'] > 0
+        success = stats['filled'] > 0 and stats['errors'] == 0
         logger.info(f"Test {'PASSED' if success else 'FAILED'}")
         
         return success
