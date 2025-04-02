@@ -367,20 +367,16 @@ Sincerely,
                 # Sleep for a minute before retrying
                 time.sleep(60)
 
-def parse_arguments():
-    """
-    Parse command line arguments
-    
-    Returns:
-        argparse.Namespace: Parsed command line arguments
-    """
-    parser = argparse.ArgumentParser(description="Job Alert System")
-    parser.add_argument("--run-once", action="store_true", help="Run the system once and exit")
-    parser.add_argument("--apply-only", action="store_true", help="Only process pending applications, don't search for new jobs")
-    parser.add_argument("--limit", type=int, default=3, help="Maximum number of applications to process")
-    parser.add_argument("--search-only", action="store_true", help="Only search for jobs, don't apply")
-    args = parser.parse_args()
-    return args
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Job application automator')
+    parser.add_argument('--config', type=str, default='config.json', help='Path to config file')
+    parser.add_argument('--run-once', action='store_true', help='Run once and exit')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--apply-only', action='store_true', help='Only apply to jobs in the queue')
+    parser.add_argument('--search-only', action='store_true', help='Only search for jobs, don\'t apply')
+    parser.add_argument('--test-mode', action='store_true', help='Run in test mode with mock data')
+    return parser.parse_args()
 
 def run_job_search(job_searcher):
     """
@@ -525,13 +521,8 @@ def send_email_notification(jobs, config):
         return False
 
 def main():
-    """
-    Main entry point for the job alert system.
-    
-    Run the job search process, identify suitable jobs, apply to them, and generate reports.
-    """
-    # Get command line arguments
-    args = parse_arguments()
+    """Main function"""
+    args = parse_args()
     
     # Configure the error notifier
     error_notifier = ErrorNotifier()
@@ -556,14 +547,12 @@ def main():
     )
     
     # Initialize the job application automator
-    job_application_path = os.path.join(os.getcwd(), "applications")
-    resume_path = os.getenv("RESUME_PATH", os.path.join(os.getcwd(), "resume.pdf"))
-    
-    job_application_automator = JobApplicationAutomator(
-        resume_path=resume_path,
-        application_path=job_application_path,
-        config_file="config.json",
-        test_mode=bright_data_test_mode
+    automator = JobApplicationAutomator(
+        config_path=args.config,
+        debug=args.debug,
+        headless=not args.debug,
+        use_incognito=True,
+        test_mode=args.test_mode
     )
     logger.info("Initialized job application automator")
     
@@ -589,8 +578,8 @@ def main():
                 for job in jobs:
                     try:
                         # Check if job meets requirements and prepare application package
-                        if job_application_automator.job_meets_requirements(job):
-                            job_application_automator.prepare_application_package(job)
+                        if automator.job_meets_requirements(job):
+                            automator.prepare_application_package(job)
                             logger.info(f"Prepared application package for {job.get('employer_name')} - {job.get('job_title')}")
                     except Exception as e:
                         logger.error(f"Error preparing application for {job.get('job_title')} at {job.get('employer_name')}: {str(e)}")
@@ -604,14 +593,14 @@ def main():
             logger.info("Processing pending job applications...")
             try:
                 # Submit applications
-                submitted_count = job_application_automator.process_applications(limit=args.limit)
+                submitted_count = automator.process_applications(limit=3)
                 logger.info(f"Submitted {submitted_count} job applications")
                 
                 # Send notification if applications were submitted
                 if submitted_count > 0 and notify_email:
                     email_notifier.send_application_report(
                         recipient=notify_email,
-                        applications=job_application_automator.get_recent_applications(count=submitted_count)
+                        applications=automator.get_recent_applications(count=submitted_count)
                     )
             except Exception as e:
                 logger.error(f"Error processing applications: {str(e)}")
@@ -630,8 +619,8 @@ def main():
                     # Prepare job applications
                     for job in jobs:
                         try:
-                            if job_application_automator.job_meets_requirements(job):
-                                job_application_automator.prepare_application_package(job)
+                            if automator.job_meets_requirements(job):
+                                automator.prepare_application_package(job)
                                 logger.info(f"Prepared application package for {job.get('employer_name')} - {job.get('job_title')}")
                         except Exception as e:
                             logger.error(f"Error preparing application: {str(e)}")
@@ -640,14 +629,14 @@ def main():
                 # Process applications
                 if not args.search_only:
                     logger.info("Processing pending job applications...")
-                    submitted_count = job_application_automator.process_applications(limit=args.limit)
+                    submitted_count = automator.process_applications(limit=3)
                     logger.info(f"Submitted {submitted_count} job applications")
                     
                     # Send notification if applications were submitted
                     if submitted_count > 0 and notify_email:
                         email_notifier.send_application_report(
                             recipient=notify_email,
-                            applications=job_application_automator.get_recent_applications(count=submitted_count)
+                            applications=automator.get_recent_applications(count=submitted_count)
                         )
                 
                 # Wait for the next run
